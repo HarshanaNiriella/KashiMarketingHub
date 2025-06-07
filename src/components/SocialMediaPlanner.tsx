@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,15 +7,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon, Plus, Image, Video, FileText } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Calendar as CalendarIcon, Plus, Image, Video, FileText, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const SocialMediaPlanner = () => {
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [showNewPostForm, setShowNewPostForm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<number | null>(null);
+  const { toast } = useToast();
 
-  const socialPosts = [
+  const [socialPosts, setSocialPosts] = useState([
     {
       id: 1,
       content: "Start your morning with gratitude 🙏 What are three things you're grateful for today?",
@@ -47,7 +52,36 @@ const SocialMediaPlanner = () => {
       time: "15:00",
       media: "image"
     }
-  ];
+  ]);
+
+  const handleDeleteRequest = (postId: number) => {
+    setPostToDelete(postId);
+    setShowDeleteDialog(true);
+    setDeletePassword('');
+  };
+
+  const handleDelete = () => {
+    if (deletePassword !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Incorrect password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (postToDelete !== null) {
+      setSocialPosts(prev => prev.filter(post => post.id !== postToDelete));
+      toast({
+        title: "Success",
+        description: "Social media post deleted successfully.",
+      });
+    }
+
+    setShowDeleteDialog(false);
+    setPostToDelete(null);
+    setDeletePassword('');
+  };
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -225,6 +259,14 @@ const SocialMediaPlanner = () => {
                 <div className="flex items-center space-x-2">
                   {getMediaIcon(post.media)}
                   {getStatusBadge(post.status)}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteRequest(post.id)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
 
@@ -272,6 +314,40 @@ const SocialMediaPlanner = () => {
           </div>
         </div>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Social Media Post</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sage-600">Enter password to delete this post:</p>
+            <Input
+              type="password"
+              placeholder="Enter password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              className="border-sage-200"
+            />
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteDialog(false)}
+                className="border-sage-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDelete}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

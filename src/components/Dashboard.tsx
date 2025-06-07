@@ -1,11 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, CheckCircle, Clock, AlertCircle, Users } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Calendar, CheckCircle, Clock, AlertCircle, Users, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 interface ActionItem {
   id: string;
@@ -22,10 +24,19 @@ interface MeetingMinute {
   attendees: string[];
 }
 
-const Dashboard = () => {
+interface DashboardProps {
+  onSchedulePost: () => void;
+  onViewTimeline: () => void;
+}
+
+const Dashboard = ({ onSchedulePost, onViewTimeline }: DashboardProps) => {
   const [lastMeeting, setLastMeeting] = useState<MeetingMinute | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ type: string; id: string } | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchDashboardData();
@@ -58,6 +69,62 @@ const Dashboard = () => {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeleteRequest = (type: string, id: string) => {
+    setItemToDelete({ type, id });
+    setShowDeleteDialog(true);
+    setDeletePassword('');
+  };
+
+  const handleDelete = async () => {
+    if (deletePassword !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Incorrect password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!itemToDelete) return;
+
+    try {
+      if (itemToDelete.type === 'meeting') {
+        const { error } = await supabase
+          .from('meeting_minutes')
+          .delete()
+          .eq('id', itemToDelete.id);
+
+        if (error) throw error;
+        setLastMeeting(null);
+        setActionItems([]);
+      } else if (itemToDelete.type === 'action_item') {
+        const { error } = await supabase
+          .from('action_items')
+          .delete()
+          .eq('id', itemToDelete.id);
+
+        if (error) throw error;
+        setActionItems(prev => prev.filter(item => item.id !== itemToDelete.id));
+      }
+
+      toast({
+        title: "Success",
+        description: "Item deleted successfully.",
+      });
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete item.",
+        variant: "destructive"
+      });
+    } finally {
+      setShowDeleteDialog(false);
+      setItemToDelete(null);
+      setDeletePassword('');
     }
   };
 
@@ -104,9 +171,21 @@ const Dashboard = () => {
       {/* Meeting Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6 border-sage-200 bg-gradient-to-br from-white to-emerald-50">
-          <div className="flex items-center space-x-3 mb-4">
-            <Calendar className="h-5 w-5 text-emerald-600" />
-            <h3 className="text-lg font-semibold text-sage-800">Last Marketing Meeting</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <Calendar className="h-5 w-5 text-emerald-600" />
+              <h3 className="text-lg font-semibold text-sage-800">Last Marketing Meeting</h3>
+            </div>
+            {lastMeeting && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDeleteRequest('meeting', lastMeeting.id)}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           {lastMeeting ? (
             <>
@@ -167,6 +246,14 @@ const Dashboard = () => {
                     {task.priority}
                   </Badge>
                   {getStatusBadge(task.status)}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteRequest('action_item', task.id)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             ))}
@@ -209,16 +296,61 @@ const Dashboard = () => {
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+        <Button 
+          onClick={() => window.location.href = '#'} 
+          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
           ✍️ Add Meeting Minutes
         </Button>
-        <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50">
+        <Button 
+          variant="outline" 
+          onClick={onSchedulePost}
+          className="border-blue-200 text-blue-700 hover:bg-blue-50"
+        >
           📱 Schedule Social Post
         </Button>
-        <Button variant="outline" className="border-sage-200 text-sage-700 hover:bg-sage-50">
+        <Button 
+          variant="outline" 
+          onClick={onViewTimeline}
+          className="border-sage-200 text-sage-700 hover:bg-sage-50"
+        >
           📊 View Timeline
         </Button>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Item</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sage-600">Enter password to delete this item:</p>
+            <Input
+              type="password"
+              placeholder="Enter password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              className="border-sage-200"
+            />
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteDialog(false)}
+                className="border-sage-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDelete}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

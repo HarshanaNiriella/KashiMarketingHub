@@ -1,27 +1,80 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+import { useState } from 'react';
+import { Toaster } from '@/components/ui/toaster';
+import Navigation from '@/components/Navigation';
+import Dashboard from '@/components/Dashboard';
+import MarketingMinutes from '@/components/MarketingMinutes';
+import SocialMediaPlanner from '@/components/SocialMediaPlanner';
+import Timeline from '@/components/Timeline';
+import ScheduleSocialPost from '@/components/ScheduleSocialPost';
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
+function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [currentView, setCurrentView] = useState('dashboard');
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setCurrentView(tab);
+  };
+
+  const handleSchedulePost = () => {
+    setCurrentView('schedule-post');
+  };
+
+  const handleViewTimeline = () => {
+    setCurrentView('timeline');
+  };
+
+  const handleBackToDashboard = () => {
+    setCurrentView('dashboard');
+    setActiveTab('dashboard');
+  };
+
+  const renderContent = () => {
+    switch (currentView) {
+      case 'dashboard':
+        return (
+          <Dashboard 
+            onSchedulePost={handleSchedulePost}
+            onViewTimeline={handleViewTimeline}
+          />
+        );
+      case 'minutes':
+        return <MarketingMinutes />;
+      case 'social':
+        return <SocialMediaPlanner />;
+      case 'timeline':
+        return <Timeline />;
+      case 'schedule-post':
+        return <ScheduleSocialPost onBack={handleBackToDashboard} />;
+      default:
+        return (
+          <Dashboard 
+            onSchedulePost={handleSchedulePost}
+            onViewTimeline={handleViewTimeline}
+          />
+        );
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-sage-50 to-emerald-50">
+      <header className="bg-white shadow-sm border-b border-sage-200">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <h1 className="text-2xl font-bold text-sage-800">🧘 Kashi Wellness Marketing Hub</h1>
+          <p className="text-sage-600 mt-1">Streamline your wellness marketing efforts</p>
+        </div>
+      </header>
+
+      <Navigation activeTab={activeTab} onTabChange={handleTabChange} />
+
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {renderContent()}
+      </main>
+
       <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+    </div>
+  );
+}
 
 export default App;

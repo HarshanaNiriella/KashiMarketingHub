@@ -1,25 +1,65 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Calendar, CheckCircle, Clock, AlertCircle, Users } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+
+interface ActionItem {
+  id: string;
+  task: string;
+  assignee: string;
+  priority: string;
+  status: string;
+}
+
+interface MeetingMinute {
+  id: string;
+  meeting_date: string;
+  next_meeting_date?: string;
+  attendees: string[];
+}
 
 const Dashboard = () => {
-  const lastMeetingDate = "December 1, 2024";
-  const nextMeetingDate = "December 8, 2024";
-  
-  const recentTasks = [
-    { id: 1, task: "Create Instagram story templates", status: "completed", assignee: "Sarah" },
-    { id: 2, task: "Plan December newsletter", status: "pending", assignee: "Mike" },
-    { id: 3, task: "Update website banner", status: "delayed", assignee: "Anna", reason: "Waiting for new photos" }
-  ];
+  const [lastMeeting, setLastMeeting] = useState<MeetingMinute | null>(null);
+  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const upcomingSocialPosts = [
-    { id: 1, content: "Morning meditation tips", platform: "Instagram", date: "Dec 8", status: "scheduled" },
-    { id: 2, content: "Wellness Wednesday quote", platform: "Facebook", date: "Dec 10", status: "draft" },
-    { id: 3, content: "New retreat photos", platform: "Instagram", date: "Dec 12", status: "planned" }
-  ];
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      // Fetch the most recent meeting
+      const { data: meetings, error: meetingError } = await supabase
+        .from('meeting_minutes')
+        .select('*')
+        .order('meeting_date', { ascending: false })
+        .limit(1);
+
+      if (meetingError) throw meetingError;
+
+      if (meetings && meetings.length > 0) {
+        setLastMeeting(meetings[0]);
+
+        // Fetch action items from the last meeting
+        const { data: items, error: itemsError } = await supabase
+          .from('action_items')
+          .select('*')
+          .eq('meeting_minutes_id', meetings[0].id);
+
+        if (itemsError) throw itemsError;
+        setActionItems(items || []);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -47,6 +87,18 @@ const Dashboard = () => {
     );
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-sage-600">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  const completedItems = actionItems.filter(item => item.status === 'completed').length;
+  const pendingItems = actionItems.filter(item => item.status === 'pending').length;
+  const delayedItems = actionItems.filter(item => item.status === 'delayed').length;
+
   return (
     <div className="space-y-6">
       {/* Meeting Overview */}
@@ -56,8 +108,22 @@ const Dashboard = () => {
             <Calendar className="h-5 w-5 text-emerald-600" />
             <h3 className="text-lg font-semibold text-sage-800">Last Marketing Meeting</h3>
           </div>
-          <p className="text-2xl font-bold text-emerald-600 mb-2">{lastMeetingDate}</p>
-          <p className="text-sm text-sage-600">3 action items assigned • 1 completed, 1 pending, 1 delayed</p>
+          {lastMeeting ? (
+            <>
+              <p className="text-2xl font-bold text-emerald-600 mb-2">
+                {format(new Date(lastMeeting.meeting_date), 'MMMM d, yyyy')}
+              </p>
+              <div className="flex items-center space-x-2 text-sm text-sage-600 mb-2">
+                <Users className="h-4 w-4" />
+                <span>{lastMeeting.attendees.length} attendees</span>
+              </div>
+              <p className="text-sm text-sage-600">
+                {actionItems.length} action items • {completedItems} completed, {pendingItems} pending, {delayedItems} delayed
+              </p>
+            </>
+          ) : (
+            <p className="text-sage-600">No meetings recorded yet</p>
+          )}
         </Card>
 
         <Card className="p-6 border-sage-200 bg-gradient-to-br from-white to-blue-50">
@@ -65,47 +131,79 @@ const Dashboard = () => {
             <Calendar className="h-5 w-5 text-blue-600" />
             <h3 className="text-lg font-semibold text-sage-800">Next Marketing Meeting</h3>
           </div>
-          <p className="text-2xl font-bold text-blue-600 mb-2">{nextMeetingDate}</p>
-          <p className="text-sm text-sage-600">In 5 days • Review pending items</p>
+          {lastMeeting?.next_meeting_date ? (
+            <>
+              <p className="text-2xl font-bold text-blue-600 mb-2">
+                {format(new Date(lastMeeting.next_meeting_date), 'MMMM d, yyyy')}
+              </p>
+              <p className="text-sm text-sage-600">Scheduled • Review pending items</p>
+            </>
+          ) : (
+            <p className="text-sage-600">Next meeting not scheduled</p>
+          )}
         </Card>
       </div>
 
       {/* Action Items Status */}
       <Card className="p-6 border-sage-200">
         <h3 className="text-lg font-semibold text-sage-800 mb-4">📋 Current Action Items</h3>
-        <div className="space-y-3">
-          {recentTasks.map((task) => (
-            <div key={task.id} className="flex items-center justify-between p-3 bg-sage-50 rounded-lg border border-sage-100">
-              <div className="flex items-center space-x-3">
-                {getStatusIcon(task.status)}
-                <div>
-                  <p className="font-medium text-sage-800">{task.task}</p>
-                  <p className="text-sm text-sage-600">Assigned to: {task.assignee}</p>
-                  {task.reason && (
-                    <p className="text-xs text-orange-600 mt-1">Reason: {task.reason}</p>
-                  )}
+        {actionItems.length > 0 ? (
+          <div className="space-y-3">
+            {actionItems.map((task) => (
+              <div key={task.id} className="flex items-center justify-between p-3 bg-sage-50 rounded-lg border border-sage-100">
+                <div className="flex items-center space-x-3">
+                  {getStatusIcon(task.status)}
+                  <div>
+                    <p className="font-medium text-sage-800">{task.task}</p>
+                    <p className="text-sm text-sage-600">Assigned to: {task.assignee}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Badge className={`capitalize px-2 py-1 text-xs ${
+                    task.priority === 'high' ? 'bg-red-100 text-red-700' :
+                    task.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                    'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    {task.priority}
+                  </Badge>
+                  {getStatusBadge(task.status)}
                 </div>
               </div>
-              {getStatusBadge(task.status)}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sage-600">No action items from recent meetings</p>
+        )}
       </Card>
 
       {/* Social Media Preview */}
       <Card className="p-6 border-sage-200">
         <h3 className="text-lg font-semibold text-sage-800 mb-4">📱 Upcoming Social Media</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {upcomingSocialPosts.map((post) => (
-            <div key={post.id} className="p-4 bg-gradient-to-br from-white to-purple-50 rounded-lg border border-purple-100">
-              <div className="flex justify-between items-start mb-2">
-                {getStatusBadge(post.status)}
-                <span className="text-sm text-sage-600">{post.date}</span>
-              </div>
-              <p className="font-medium text-sage-800 mb-1">{post.content}</p>
-              <p className="text-sm text-sage-600">{post.platform}</p>
+          <div className="p-4 bg-gradient-to-br from-white to-purple-50 rounded-lg border border-purple-100">
+            <div className="flex justify-between items-start mb-2">
+              {getStatusBadge('scheduled')}
+              <span className="text-sm text-sage-600">Dec 8</span>
             </div>
-          ))}
+            <p className="font-medium text-sage-800 mb-1">Morning meditation tips</p>
+            <p className="text-sm text-sage-600">Instagram</p>
+          </div>
+          <div className="p-4 bg-gradient-to-br from-white to-purple-50 rounded-lg border border-purple-100">
+            <div className="flex justify-between items-start mb-2">
+              {getStatusBadge('draft')}
+              <span className="text-sm text-sage-600">Dec 10</span>
+            </div>
+            <p className="font-medium text-sage-800 mb-1">Wellness Wednesday quote</p>
+            <p className="text-sm text-sage-600">Facebook</p>
+          </div>
+          <div className="p-4 bg-gradient-to-br from-white to-purple-50 rounded-lg border border-purple-100">
+            <div className="flex justify-between items-start mb-2">
+              {getStatusBadge('planned')}
+              <span className="text-sm text-sage-600">Dec 12</span>
+            </div>
+            <p className="font-medium text-sage-800 mb-1">New retreat photos</p>
+            <p className="text-sm text-sage-600">Instagram</p>
+          </div>
         </div>
       </Card>
 

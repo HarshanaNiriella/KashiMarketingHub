@@ -9,6 +9,50 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      action_items: {
+        Row: {
+          assignee: string
+          created_at: string
+          due_date: string | null
+          id: string
+          meeting_minutes_id: string | null
+          priority: string
+          status: string
+          task: string
+          updated_at: string
+        }
+        Insert: {
+          assignee: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          meeting_minutes_id?: string | null
+          priority?: string
+          status?: string
+          task: string
+          updated_at?: string
+        }
+        Update: {
+          assignee?: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          meeting_minutes_id?: string | null
+          priority?: string
+          status?: string
+          task?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_items_meeting_minutes_id_fkey"
+            columns: ["meeting_minutes_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_minutes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_applications: {
         Row: {
           applicant_id: string | null
@@ -115,6 +159,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      meeting_minutes: {
+        Row: {
+          attendees: string[] | null
+          created_at: string
+          duration: string | null
+          id: string
+          meeting_date: string
+          next_meeting_agenda: string | null
+          next_meeting_date: string | null
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          attendees?: string[] | null
+          created_at?: string
+          duration?: string | null
+          id?: string
+          meeting_date: string
+          next_meeting_agenda?: string | null
+          next_meeting_date?: string | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attendees?: string[] | null
+          created_at?: string
+          duration?: string | null
+          id?: string
+          meeting_date?: string
+          next_meeting_agenda?: string | null
+          next_meeting_date?: string | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

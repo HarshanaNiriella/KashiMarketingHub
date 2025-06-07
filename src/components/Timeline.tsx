@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, Users, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -18,6 +17,28 @@ interface TimelineItem {
   details: string;
   status?: string;
 }
+
+interface SocialPost {
+  id: number;
+  content: string;
+  platform: string;
+  type: string;
+  status: string;
+  date: string;
+  time: string;
+  media: string;
+}
+
+// Get social posts from localStorage
+const getSocialPosts = (): SocialPost[] => {
+  try {
+    const stored = localStorage.getItem('socialPosts');
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error loading social posts:', error);
+    return [];
+  }
+};
 
 const Timeline = () => {
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
@@ -50,27 +71,18 @@ const Timeline = () => {
         status: 'completed'
       }));
 
-      // Mock social media posts for timeline
-      const socialPosts: TimelineItem[] = [
-        {
-          id: 'social-1',
-          type: 'social_post',
-          title: 'Morning meditation tips',
-          date: '2024-12-08',
-          details: 'Instagram post - Scheduled',
-          status: 'scheduled'
-        },
-        {
-          id: 'social-2',
-          type: 'social_post',
-          title: 'Wellness Wednesday quote',
-          date: '2024-12-10',
-          details: 'Facebook post - Draft',
-          status: 'draft'
-        }
-      ];
+      // Get social media posts from localStorage
+      const socialPosts = getSocialPosts();
+      const socialPostItems: TimelineItem[] = socialPosts.map(post => ({
+        id: `social-${post.id}`,
+        type: 'social_post',
+        title: post.content.length > 50 ? post.content.substring(0, 50) + '...' : post.content,
+        date: post.date,
+        details: `${post.platform} ${post.type} - ${post.status}`,
+        status: post.status
+      }));
 
-      const allItems = [...meetingItems, ...socialPosts].sort((a, b) => 
+      const allItems = [...meetingItems, ...socialPostItems].sort((a, b) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
 
@@ -110,6 +122,12 @@ const Timeline = () => {
           .eq('id', itemToDelete);
 
         if (error) throw error;
+      } else if (item?.type === 'social_post') {
+        // Handle social post deletion from localStorage
+        const socialPosts = getSocialPosts();
+        const postId = parseInt(itemToDelete.replace('social-', ''));
+        const updatedPosts = socialPosts.filter(post => post.id !== postId);
+        localStorage.setItem('socialPosts', JSON.stringify(updatedPosts));
       }
 
       // Remove from local state
@@ -168,34 +186,38 @@ const Timeline = () => {
         <h3 className="text-lg font-semibold text-sage-800 mb-4">Recent Activities</h3>
         
         <div className="space-y-4">
-          {timelineItems.map((item) => (
-            <div key={item.id} className="flex items-center justify-between p-4 bg-sage-50 rounded-lg border border-sage-100">
-              <div className="flex items-center space-x-3">
-                {getTypeIcon(item.type)}
-                <div>
-                  <p className="font-medium text-sage-800">{item.title}</p>
-                  <p className="text-sm text-sage-600">{item.details}</p>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <Clock className="h-3 w-3 text-sage-500" />
-                    <span className="text-xs text-sage-500">
-                      {format(new Date(item.date), 'MMM d, yyyy')}
-                    </span>
+          {timelineItems.length > 0 ? (
+            timelineItems.map((item) => (
+              <div key={item.id} className="flex items-center justify-between p-4 bg-sage-50 rounded-lg border border-sage-100">
+                <div className="flex items-center space-x-3">
+                  {getTypeIcon(item.type)}
+                  <div>
+                    <p className="font-medium text-sage-800">{item.title}</p>
+                    <p className="text-sm text-sage-600">{item.details}</p>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <Clock className="h-3 w-3 text-sage-500" />
+                      <span className="text-xs text-sage-500">
+                        {format(new Date(item.date), 'MMM d, yyyy')}
+                      </span>
+                    </div>
                   </div>
                 </div>
+                <div className="flex items-center space-x-2">
+                  {item.status && getStatusBadge(item.status)}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteRequest(item.id)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                {item.status && getStatusBadge(item.status)}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteRequest(item.id)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-sage-600 text-center py-8">No activities recorded yet</p>
+          )}
         </div>
       </Card>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,17 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
+interface SocialPost {
+  id: number;
+  content: string;
+  platform: string;
+  type: string;
+  status: string;
+  date: string;
+  time: string;
+  media: string;
+}
+
 const SocialMediaPlanner = () => {
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [showNewPostForm, setShowNewPostForm] = useState(false);
@@ -21,38 +32,68 @@ const SocialMediaPlanner = () => {
   const [postToDelete, setPostToDelete] = useState<number | null>(null);
   const { toast } = useToast();
 
-  const [socialPosts, setSocialPosts] = useState([
-    {
-      id: 1,
-      content: "Start your morning with gratitude 🙏 What are three things you're grateful for today?",
-      platform: "Instagram",
-      type: "post",
-      status: "scheduled",
-      date: "2024-12-08",
-      time: "07:00",
-      media: "image"
-    },
-    {
-      id: 2,
-      content: "Wellness Wednesday: The power of breathwork in reducing stress and anxiety. Join our evening session!",
-      platform: "Facebook",
-      type: "event",
-      status: "draft",
-      date: "2024-12-10",
-      time: "18:00",
-      media: "video"
-    },
-    {
-      id: 3,
-      content: "New retreat photos from our weekend mindfulness session ✨ #KashiWellness #Mindfulness",
-      platform: "Instagram",
-      type: "carousel",
-      status: "planned",
-      date: "2024-12-12",
-      time: "15:00",
-      media: "image"
+  // Load social posts from localStorage
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
+
+  useEffect(() => {
+    loadSocialPosts();
+  }, []);
+
+  const loadSocialPosts = () => {
+    try {
+      const stored = localStorage.getItem('socialPosts');
+      if (stored) {
+        setSocialPosts(JSON.parse(stored));
+      } else {
+        // Initialize with default posts if none exist
+        const defaultPosts = [
+          {
+            id: 1,
+            content: "Start your morning with gratitude 🙏 What are three things you're grateful for today?",
+            platform: "Instagram",
+            type: "post",
+            status: "scheduled",
+            date: "2024-12-08",
+            time: "07:00",
+            media: "image"
+          },
+          {
+            id: 2,
+            content: "Wellness Wednesday: The power of breathwork in reducing stress and anxiety. Join our evening session!",
+            platform: "Facebook",
+            type: "event",
+            status: "draft",
+            date: "2024-12-10",
+            time: "18:00",
+            media: "video"
+          },
+          {
+            id: 3,
+            content: "New retreat photos from our weekend mindfulness session ✨ #KashiWellness #Mindfulness",
+            platform: "Instagram",
+            type: "carousel",
+            status: "planned",
+            date: "2024-12-12",
+            time: "15:00",
+            media: "image"
+          }
+        ];
+        setSocialPosts(defaultPosts);
+        localStorage.setItem('socialPosts', JSON.stringify(defaultPosts));
+      }
+    } catch (error) {
+      console.error('Error loading social posts:', error);
     }
-  ]);
+  };
+
+  const saveSocialPosts = (posts: SocialPost[]) => {
+    try {
+      localStorage.setItem('socialPosts', JSON.stringify(posts));
+      setSocialPosts(posts);
+    } catch (error) {
+      console.error('Error saving social posts:', error);
+    }
+  };
 
   const handleDeleteRequest = (postId: number) => {
     setPostToDelete(postId);
@@ -71,7 +112,8 @@ const SocialMediaPlanner = () => {
     }
 
     if (postToDelete !== null) {
-      setSocialPosts(prev => prev.filter(post => post.id !== postToDelete));
+      const updatedPosts = socialPosts.filter(post => post.id !== postToDelete);
+      saveSocialPosts(updatedPosts);
       toast({
         title: "Success",
         description: "Social media post deleted successfully.",

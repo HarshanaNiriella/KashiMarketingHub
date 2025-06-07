@@ -9,16 +9,36 @@ import SocialMediaPlanner from '@/components/SocialMediaPlanner';
 const Index = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  const handleSchedulePost = () => {
+    // For now, just log or could redirect to social media planner
+    setActiveTab('social');
+  };
+
+  const handleViewTimeline = () => {
+    // For now, just log or could show a timeline view
+    console.log('View timeline clicked');
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard />;
+        return (
+          <Dashboard 
+            onSchedulePost={handleSchedulePost}
+            onViewTimeline={handleViewTimeline}
+          />
+        );
       case 'minutes':
         return <MarketingMinutes />;
       case 'social':
         return <SocialMediaPlanner />;
       default:
-        return <Dashboard />;
+        return (
+          <Dashboard 
+            onSchedulePost={handleSchedulePost}
+            onViewTimeline={handleViewTimeline}
+          />
+        );
     }
   };
 

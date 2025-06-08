@@ -8,6 +8,7 @@ import SocialMediaPlanner from '@/components/SocialMediaPlanner';
 import Timeline from '@/components/Timeline';
 import ScheduleSocialPost from '@/components/ScheduleSocialPost';
 import StaffManagement from '@/components/StaffManagement';
+import Footer from '@/components/Footer';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -82,6 +83,7 @@ function App() {
         {renderContent()}
       </main>
 
+      <Footer />
       <Toaster />
     </div>
   );

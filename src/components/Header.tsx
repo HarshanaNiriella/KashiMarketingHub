@@ -1,18 +1,22 @@
 
 import React from 'react';
-import { Calendar, Users, Leaf } from 'lucide-react';
+import { Calendar, Users } from 'lucide-react';
 
 const Header = () => {
   return (
     <header className="bg-gradient-to-r from-emerald-50 to-sage-50 border-b border-sage-200 px-6 py-4">
       <div className="flex items-center justify-between max-w-7xl mx-auto">
         <div className="flex items-center space-x-3">
-          <div className="bg-emerald-100 p-2 rounded-lg">
-            <Leaf className="h-6 w-6 text-emerald-600" />
+          <div className="flex items-center">
+            <img 
+              src="/lovable-uploads/2fac8819-0300-4101-8911-ccf407dc273b.png" 
+              alt="Kashi Wellness Retreat" 
+              className="h-12 w-auto"
+            />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-sage-800">Kashi Wellness Retreat</h1>
-            <p className="text-sm text-sage-600">Marketing Minutes & Social Boost Planner</p>
+            <h1 className="text-2xl font-semibold text-sage-800">Marketing Minutes & Social Boost Planner</h1>
+            <p className="text-sm text-sage-600">Streamline your wellness marketing efforts</p>
           </div>
         </div>
         <div className="flex items-center space-x-4">

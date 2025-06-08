@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Header from '@/components/Header';
 import Navigation from '@/components/Navigation';
@@ -19,6 +18,10 @@ const Index = () => {
     console.log('View timeline clicked');
   };
 
+  const handleAddMeetingMinutes = () => {
+    setActiveTab('minutes');
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -26,6 +29,7 @@ const Index = () => {
           <Dashboard 
             onSchedulePost={handleSchedulePost}
             onViewTimeline={handleViewTimeline}
+            onAddMeetingMinutes={handleAddMeetingMinutes}
           />
         );
       case 'minutes':
@@ -37,6 +41,7 @@ const Index = () => {
           <Dashboard 
             onSchedulePost={handleSchedulePost}
             onViewTimeline={handleViewTimeline}
+            onAddMeetingMinutes={handleAddMeetingMinutes}
           />
         );
     }

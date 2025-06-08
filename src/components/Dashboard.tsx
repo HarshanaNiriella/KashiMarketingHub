@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calendar, CheckCircle, Clock, AlertCircle, Users, Trash2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar, CheckCircle, Clock, AlertCircle, Users, Trash2, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -24,23 +26,51 @@ interface MeetingMinute {
   attendees: string[];
 }
 
+interface SocialPost {
+  id: number;
+  content: string;
+  platform: string;
+  type: string;
+  status: string;
+  date: string;
+  time: string;
+  media: string;
+}
+
 interface DashboardProps {
   onSchedulePost: () => void;
   onViewTimeline: () => void;
   onAddMeetingMinutes: () => void;
 }
 
+// Get social posts from localStorage
+const getSocialPosts = (): SocialPost[] => {
+  try {
+    const stored = localStorage.getItem('socialPosts');
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error loading social posts:', error);
+    return [];
+  }
+};
+
 const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: DashboardProps) => {
   const [lastMeeting, setLastMeeting] = useState<MeetingMinute | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletePassword, setDeletePassword] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ type: string; id: string } | null>(null);
+  const [itemToUpdate, setItemToUpdate] = useState<ActionItem | null>(null);
+  const [newStatus, setNewStatus] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
     fetchDashboardData();
+    setSocialPosts(getSocialPosts());
   }, []);
 
   const fetchDashboardData = async () => {
@@ -77,6 +107,13 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     setItemToDelete({ type, id });
     setShowDeleteDialog(true);
     setDeletePassword('');
+  };
+
+  const handleUpdateStatusRequest = (item: ActionItem) => {
+    setItemToUpdate(item);
+    setNewStatus(item.status);
+    setShowUpdateDialog(true);
+    setAdminPassword('');
   };
 
   const handleDelete = async () => {
@@ -129,11 +166,59 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     }
   };
 
+  const handleUpdateStatus = async () => {
+    if (adminPassword !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Incorrect password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!itemToUpdate) return;
+
+    try {
+      const { error } = await supabase
+        .from('action_items')
+        .update({ status: newStatus })
+        .eq('id', itemToUpdate.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setActionItems(prev => 
+        prev.map(item => 
+          item.id === itemToUpdate.id 
+            ? { ...item, status: newStatus }
+            : item
+        )
+      );
+
+      toast({
+        title: "Success",
+        description: "Action item status updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update status.",
+        variant: "destructive"
+      });
+    } finally {
+      setShowUpdateDialog(false);
+      setItemToUpdate(null);
+      setAdminPassword('');
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed': return <CheckCircle className="h-4 w-4 text-emerald-500" />;
       case 'pending': return <Clock className="h-4 w-4 text-amber-500" />;
       case 'delayed': return <AlertCircle className="h-4 w-4 text-orange-500" />;
+      case 'under_discussion': return <Users className="h-4 w-4 text-blue-500" />;
       default: return null;
     }
   };
@@ -143,6 +228,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
       pending: "bg-amber-100 text-amber-700 border-amber-200",
       delayed: "bg-orange-100 text-orange-700 border-orange-200",
+      under_discussion: "bg-blue-100 text-blue-700 border-blue-200",
       scheduled: "bg-blue-100 text-blue-700 border-blue-200",
       draft: "bg-purple-100 text-purple-700 border-purple-200",
       planned: "bg-sage-100 text-sage-700 border-sage-200"
@@ -150,9 +236,23 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     
     return (
       <Badge className={`${variants[status as keyof typeof variants]} capitalize`}>
-        {status}
+        {status.replace('_', ' ')}
       </Badge>
     );
+  };
+
+  // Get upcoming social media posts (next 7 days)
+  const getUpcomingSocialPosts = () => {
+    const today = new Date();
+    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    
+    return socialPosts
+      .filter(post => {
+        const postDate = new Date(post.date);
+        return postDate >= today && postDate <= nextWeek;
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, 3); // Show max 3 upcoming posts
   };
 
   if (isLoading) {
@@ -166,6 +266,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   const completedItems = actionItems.filter(item => item.status === 'completed').length;
   const pendingItems = actionItems.filter(item => item.status === 'pending').length;
   const delayedItems = actionItems.filter(item => item.status === 'delayed').length;
+  const upcomingPosts = getUpcomingSocialPosts();
 
   return (
     <div className="space-y-6">
@@ -250,6 +351,14 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() => handleUpdateStatusRequest(task)}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleDeleteRequest('action_item', task.id)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
@@ -264,36 +373,28 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
         )}
       </Card>
 
-      {/* Social Media Preview */}
-      <Card className="p-6 border-sage-200">
-        <h3 className="text-lg font-semibold text-sage-800 mb-4">📱 Upcoming Social Media</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-gradient-to-br from-white to-purple-50 rounded-lg border border-purple-100">
-            <div className="flex justify-between items-start mb-2">
-              {getStatusBadge('scheduled')}
-              <span className="text-sm text-sage-600">Dec 8</span>
-            </div>
-            <p className="font-medium text-sage-800 mb-1">Morning meditation tips</p>
-            <p className="text-sm text-sage-600">Instagram</p>
+      {/* Social Media Preview - Only show if there are upcoming posts */}
+      {upcomingPosts.length > 0 && (
+        <Card className="p-6 border-sage-200">
+          <h3 className="text-lg font-semibold text-sage-800 mb-4">📱 Upcoming Social Media</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {upcomingPosts.map((post) => (
+              <div key={post.id} className="p-4 bg-gradient-to-br from-white to-purple-50 rounded-lg border border-purple-100">
+                <div className="flex justify-between items-start mb-2">
+                  {getStatusBadge(post.status)}
+                  <span className="text-sm text-sage-600">
+                    {format(new Date(post.date), 'MMM d')}
+                  </span>
+                </div>
+                <p className="font-medium text-sage-800 mb-1">
+                  {post.content.length > 50 ? post.content.substring(0, 50) + '...' : post.content}
+                </p>
+                <p className="text-sm text-sage-600">{post.platform} {post.type}</p>
+              </div>
+            ))}
           </div>
-          <div className="p-4 bg-gradient-to-br from-white to-purple-50 rounded-lg border border-purple-100">
-            <div className="flex justify-between items-start mb-2">
-              {getStatusBadge('draft')}
-              <span className="text-sm text-sage-600">Dec 10</span>
-            </div>
-            <p className="font-medium text-sage-800 mb-1">Wellness Wednesday quote</p>
-            <p className="text-sm text-sage-600">Facebook</p>
-          </div>
-          <div className="p-4 bg-gradient-to-br from-white to-purple-50 rounded-lg border border-purple-100">
-            <div className="flex justify-between items-start mb-2">
-              {getStatusBadge('planned')}
-              <span className="text-sm text-sage-600">Dec 12</span>
-            </div>
-            <p className="font-medium text-sage-800 mb-1">New retreat photos</p>
-            <p className="text-sm text-sage-600">Instagram</p>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
@@ -347,6 +448,60 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
                 Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update Status Dialog */}
+      <Dialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Action Item Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-2">
+                Task: {itemToUpdate?.task}
+              </label>
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger className="border-sage-200">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="delayed">Delayed</SelectItem>
+                  <SelectItem value="under_discussion">Under Discussion</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-2">
+                Enter admin password to update:
+              </label>
+              <Input
+                type="password"
+                placeholder="Enter admin password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="border-sage-200"
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowUpdateDialog(false)}
+                className="border-sage-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateStatus}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                Update Status
               </Button>
             </div>
           </div>

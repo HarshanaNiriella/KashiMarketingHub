@@ -3,9 +3,10 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, CheckCircle, Clock, AlertCircle, Users, Trash2, Edit } from 'lucide-react';
+import { Calendar, CheckCircle, Clock, AlertCircle, Users, Trash2, Edit, MessageCircle, Send } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -65,6 +66,13 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   const [itemToDelete, setItemToDelete] = useState<{ type: string; id: string } | null>(null);
   const [itemToUpdate, setItemToUpdate] = useState<ActionItem | null>(null);
   const [newStatus, setNewStatus] = useState('');
+  const [showSocialUpdateDialog, setShowSocialUpdateDialog] = useState(false);
+  const [socialPostToUpdate, setSocialPostToUpdate] = useState<SocialPost | null>(null);
+  const [newSocialStatus, setNewSocialStatus] = useState('');
+  const [showNotesDialog, setShowNotesDialog] = useState(false);
+  const [currentItem, setCurrentItem] = useState<{ type: string; id: string; title: string } | null>(null);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -248,6 +256,104 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     );
   };
 
+  const loadNotes = (itemType: string, itemId: string) => {
+    try {
+      const storageKey = `notes_${itemType}_${itemId}`;
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        setNotes(JSON.parse(stored));
+      } else {
+        setNotes([]);
+      }
+    } catch (error) {
+      console.error('Error loading notes:', error);
+      setNotes([]);
+    }
+  };
+
+  const saveNotes = (itemType: string, itemId: string, updatedNotes: any[]) => {
+    try {
+      const storageKey = `notes_${itemType}_${itemId}`;
+      localStorage.setItem(storageKey, JSON.stringify(updatedNotes));
+      setNotes(updatedNotes);
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    }
+  };
+
+  const handleShowNotes = (type: string, id: string, title: string) => {
+    setCurrentItem({ type, id, title });
+    loadNotes(type, id);
+    setShowNotesDialog(true);
+    setNewNote('');
+  };
+
+  const handleAddNote = () => {
+    if (!newNote.trim() || !currentItem) return;
+
+    const note = {
+      id: Date.now().toString(),
+      text: newNote.trim(),
+      timestamp: new Date().toISOString(),
+      author: 'Team Member' // In a real app, this would be the current user
+    };
+
+    const updatedNotes = [...notes, note];
+    saveNotes(currentItem.type, currentItem.id, updatedNotes);
+    setNewNote('');
+
+    toast({
+      title: "Note Added",
+      description: "Your note has been added successfully.",
+    });
+  };
+
+  const handleSocialStatusRequest = (post: SocialPost) => {
+    setSocialPostToUpdate(post);
+    setNewSocialStatus(post.status);
+    setShowSocialUpdateDialog(true);
+    setAdminPassword('');
+  };
+
+  const handleUpdateSocialStatus = () => {
+    if (adminPassword !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Incorrect password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!socialPostToUpdate) return;
+
+    try {
+      const updatedPosts = socialPosts.map(post =>
+        post.id === socialPostToUpdate.id
+          ? { ...post, status: newSocialStatus }
+          : post
+      );
+      localStorage.setItem('socialPosts', JSON.stringify(updatedPosts));
+      setSocialPosts(updatedPosts);
+
+      toast({
+        title: "Success",
+        description: "Social media post status updated successfully.",
+      });
+    } catch (error) {
+      console.error('Error updating social post status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update status.",
+        variant: "destructive"
+      });
+    } finally {
+      setShowSocialUpdateDialog(false);
+      setSocialPostToUpdate(null);
+      setAdminPassword('');
+    }
+  };
+
   // Get upcoming social media posts (next 7 days)
   const getUpcomingSocialPosts = () => {
     const today = new Date();
@@ -358,6 +464,14 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() => handleShowNotes('action_item', task.id, task.task)}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleUpdateStatusRequest(task)}
                     className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                   >
@@ -396,7 +510,25 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
                 <p className="font-medium text-sage-800 mb-1">
                   {post.content.length > 50 ? post.content.substring(0, 50) + '...' : post.content}
                 </p>
-                <p className="text-sm text-sage-600">{post.platform} {post.type}</p>
+                <p className="text-sm text-sage-600 mb-2">{post.platform} {post.type}</p>
+                <div className="flex justify-end space-x-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleShowNotes('social_post', post.id.toString(), post.content.substring(0, 30) + '...')}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  >
+                    <MessageCircle className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSocialStatusRequest(post)}
+                    className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                  >
+                    <Edit className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -509,6 +641,109 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 Update Status
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update Social Media Status Dialog */}
+      <Dialog open={showSocialUpdateDialog} onOpenChange={setShowSocialUpdateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Social Media Post Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-2">
+                Post: {socialPostToUpdate?.content.substring(0, 50)}...
+              </label>
+              <Select value={newSocialStatus} onValueChange={setNewSocialStatus}>
+                <SelectTrigger className="border-sage-200">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="planned">Planned</SelectItem>
+                  <SelectItem value="posted">Posted</SelectItem>
+                  <SelectItem value="delayed">Delayed</SelectItem>
+                  <SelectItem value="still_designing">Still Designing</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-2">
+                Enter admin password to update:
+              </label>
+              <Input
+                type="password"
+                placeholder="Enter admin password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="border-sage-200"
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowSocialUpdateDialog(false)}
+                className="border-sage-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateSocialStatus}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                Update Status
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notes Dialog */}
+      <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>💬 Team Notes: {currentItem?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Notes List */}
+            <div className="max-h-64 overflow-y-auto space-y-3 p-3 bg-sage-50 rounded-lg">
+              {notes.length > 0 ? (
+                notes.map((note) => (
+                  <div key={note.id} className="bg-white p-3 rounded-lg border border-sage-200">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-medium text-sage-800">{note.author}</span>
+                      <span className="text-xs text-sage-500">
+                        {format(new Date(note.timestamp), 'MMM d, HH:mm')}
+                      </span>
+                    </div>
+                    <p className="text-sage-700">{note.text}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sage-600 text-center py-4">No notes yet. Be the first to add one!</p>
+              )}
+            </div>
+
+            {/* Add Note */}
+            <div className="flex space-x-2">
+              <Textarea
+                placeholder="Add a note for the team..."
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                className="flex-1 border-sage-200 focus:border-emerald-300"
+                rows={2}
+              />
+              <Button
+                onClick={handleAddNote}
+                disabled={!newNote.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>

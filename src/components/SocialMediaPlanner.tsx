@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calendar as CalendarIcon, Plus, Image, Video, FileText, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Image, Video, FileText, Trash2, MessageCircle, Send } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -35,6 +35,10 @@ const SocialMediaPlanner = () => {
   const [content, setContent] = useState('');
   const [time, setTime] = useState('');
   const [mediaType, setMediaType] = useState('');
+  const [showNotesDialog, setShowNotesDialog] = useState(false);
+  const [currentPost, setCurrentPost] = useState<SocialPost | null>(null);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState('');
   const { toast } = useToast();
 
   // Load social posts from localStorage
@@ -88,6 +92,31 @@ const SocialMediaPlanner = () => {
       }
     } catch (error) {
       console.error('Error loading social posts:', error);
+    }
+  };
+
+  const loadNotes = (postId: number) => {
+    try {
+      const storageKey = `notes_social_post_${postId}`;
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        setNotes(JSON.parse(stored));
+      } else {
+        setNotes([]);
+      }
+    } catch (error) {
+      console.error('Error loading notes:', error);
+      setNotes([]);
+    }
+  };
+
+  const saveNotes = (postId: number, updatedNotes: any[]) => {
+    try {
+      const storageKey = `notes_social_post_${postId}`;
+      localStorage.setItem(storageKey, JSON.stringify(updatedNotes));
+      setNotes(updatedNotes);
+    } catch (error) {
+      console.error('Error saving notes:', error);
     }
   };
 
@@ -178,18 +207,46 @@ const SocialMediaPlanner = () => {
     setDeletePassword('');
   };
 
+  const handleShowNotes = (post: SocialPost) => {
+    setCurrentPost(post);
+    loadNotes(post.id);
+    setShowNotesDialog(true);
+    setNewNote('');
+  };
+
+  const handleAddNote = () => {
+    if (!newNote.trim() || !currentPost) return;
+
+    const note = {
+      id: Date.now().toString(),
+      text: newNote.trim(),
+      timestamp: new Date().toISOString(),
+      author: 'Team Member'
+    };
+
+    const updatedNotes = [...notes, note];
+    saveNotes(currentPost.id, updatedNotes);
+    setNewNote('');
+
+    toast({
+      title: "Note Added",
+      description: "Your note has been added successfully.",
+    });
+  };
+
   const getStatusBadge = (status: string) => {
     const variants = {
       scheduled: "bg-blue-100 text-blue-700 border-blue-200",
       draft: "bg-purple-100 text-purple-700 border-purple-200",
       planned: "bg-sage-100 text-sage-700 border-sage-200",
       posted: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      delayed: "bg-orange-100 text-orange-700 border-orange-200"
+      delayed: "bg-orange-100 text-orange-700 border-orange-200",
+      still_designing: "bg-pink-100 text-pink-700 border-pink-200"
     };
     
     return (
       <Badge className={`${variants[status as keyof typeof variants]} capitalize`}>
-        {status}
+        {status.replace('_', ' ')}
       </Badge>
     );
   };
@@ -367,6 +424,14 @@ const SocialMediaPlanner = () => {
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() => handleShowNotes(post)}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleDeleteRequest(post.id)}
                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
@@ -448,6 +513,53 @@ const SocialMediaPlanner = () => {
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
                 Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notes Dialog */}
+      <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>💬 Team Notes: {currentPost?.content.substring(0, 50)}...</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Notes List */}
+            <div className="max-h-64 overflow-y-auto space-y-3 p-3 bg-sage-50 rounded-lg">
+              {notes.length > 0 ? (
+                notes.map((note) => (
+                  <div key={note.id} className="bg-white p-3 rounded-lg border border-sage-200">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-medium text-sage-800">{note.author}</span>
+                      <span className="text-xs text-sage-500">
+                        {format(new Date(note.timestamp), 'MMM d, HH:mm')}
+                      </span>
+                    </div>
+                    <p className="text-sage-700">{note.text}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sage-600 text-center py-4">No notes yet. Be the first to add one!</p>
+              )}
+            </div>
+
+            {/* Add Note */}
+            <div className="flex space-x-2">
+              <Textarea
+                placeholder="Add a note for the team..."
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                className="flex-1 border-sage-200 focus:border-emerald-300"
+                rows={2}
+              />
+              <Button
+                onClick={handleAddNote}
+                disabled={!newNote.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>

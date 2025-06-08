@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Users } from 'lucide-react';
+import { Plus, Trash2, Users, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Staff {
@@ -26,6 +25,14 @@ const StaffManagement = () => {
     department: '',
     designation: ''
   });
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [staffToEdit, setStaffToEdit] = useState<Staff | null>(null);
+  const [editStaff, setEditStaff] = useState({
+    name: '',
+    department: '',
+    designation: ''
+  });
+  const [editPassword, setEditPassword] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -87,6 +94,57 @@ const StaffManagement = () => {
     setShowAddDialog(false);
     setPassword('');
     setNewStaff({ name: '', department: '', designation: '' });
+  };
+
+  const handleEditRequest = (staffMember: Staff) => {
+    setStaffToEdit(staffMember);
+    setEditStaff({
+      name: staffMember.name,
+      department: staffMember.department,
+      designation: staffMember.designation
+    });
+    setShowEditDialog(true);
+    setEditPassword('');
+  };
+
+  const handleEditStaff = () => {
+    if (editPassword !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Incorrect admin password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!editStaff.name || !editStaff.department || !editStaff.designation) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!staffToEdit) return;
+
+    const updatedStaff = staff.map(s => 
+      s.id === staffToEdit.id 
+        ? { ...s, ...editStaff }
+        : s
+    );
+
+    saveStaff(updatedStaff);
+
+    toast({
+      title: "Success",
+      description: "Staff member updated successfully.",
+    });
+
+    setShowEditDialog(false);
+    setStaffToEdit(null);
+    setEditPassword('');
+    setEditStaff({ name: '', department: '', designation: '' });
   };
 
   const handleDeleteRequest = (staffId: string) => {
@@ -153,14 +211,24 @@ const StaffManagement = () => {
                     </div>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteRequest(member.id)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditRequest(member)}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteRequest(member.id)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))
           ) : (
@@ -226,6 +294,69 @@ const StaffManagement = () => {
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 Add Staff
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Staff Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Staff Member</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-1">Name</label>
+              <Input
+                placeholder="Enter staff name"
+                value={editStaff.name}
+                onChange={(e) => setEditStaff(prev => ({ ...prev, name: e.target.value }))}
+                className="border-sage-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-1">Department</label>
+              <Input
+                placeholder="Enter department"
+                value={editStaff.department}
+                onChange={(e) => setEditStaff(prev => ({ ...prev, department: e.target.value }))}
+                className="border-sage-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-1">Designation</label>
+              <Input
+                placeholder="Enter designation"
+                value={editStaff.designation}
+                onChange={(e) => setEditStaff(prev => ({ ...prev, designation: e.target.value }))}
+                className="border-sage-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-1">Admin Password</label>
+              <Input
+                type="password"
+                placeholder="Enter admin password"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                className="border-sage-200"
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowEditDialog(false)}
+                className="border-sage-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEditStaff}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                Update Staff
               </Button>
             </div>
           </div>

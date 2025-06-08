@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -71,6 +70,14 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   useEffect(() => {
     fetchDashboardData();
     setSocialPosts(getSocialPosts());
+
+    // Listen for storage changes to update social posts in real-time
+    const handleStorageChange = () => {
+      setSocialPosts(getSocialPosts());
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const fetchDashboardData = async () => {
@@ -249,7 +256,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     return socialPosts
       .filter(post => {
         const postDate = new Date(post.date);
-        return postDate >= today && postDate <= nextWeek;
+        return postDate >= today && postDate <= nextWeek && (post.status === 'scheduled' || post.status === 'planned');
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, 3); // Show max 3 upcoming posts

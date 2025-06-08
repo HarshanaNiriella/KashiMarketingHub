@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarIcon, Plus, User, Check } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, User, Check, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,9 +32,17 @@ interface MeetingMinute {
   next_meeting_agenda?: string;
 }
 
+interface Staff {
+  id: string;
+  name: string;
+  department: string;
+  designation: string;
+}
+
 const MarketingMinutes = () => {
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [nextMeetingDate, setNextMeetingDate] = useState<Date>();
+  const [nextMeetingTime, setNextMeetingTime] = useState('');
   const [duration, setDuration] = useState('');
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([]);
   const [meetingNotes, setMeetingNotes] = useState('');
@@ -43,10 +51,25 @@ const MarketingMinutes = () => {
     { task: '', assignee: '', priority: 'medium' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<Staff[]>([]);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   
   const { toast } = useToast();
 
-  const teamMembers = ['Sarah', 'Mike', 'Anna', 'Dr. Harshana', 'Lisa'];
+  useEffect(() => {
+    loadStaffMembers();
+  }, []);
+
+  const loadStaffMembers = () => {
+    try {
+      const stored = localStorage.getItem('staff');
+      if (stored) {
+        setTeamMembers(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading staff:', error);
+    }
+  };
 
   const addActionItem = () => {
     setActionItems([
@@ -73,6 +96,58 @@ const MarketingMinutes = () => {
         ? prev.filter(m => m !== member)
         : [...prev, member]
     );
+  };
+
+  const scheduleNextMeeting = async () => {
+    if (!nextMeetingDate || !nextMeetingTime) {
+      toast({
+        title: "Missing Information",
+        description: "Please select both date and time for the next meeting.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Get the most recent meeting to update
+      const { data: meetings, error: meetingError } = await supabase
+        .from('meeting_minutes')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (meetingError) throw meetingError;
+
+      if (meetings && meetings.length > 0) {
+        const { error: updateError } = await supabase
+          .from('meeting_minutes')
+          .update({ 
+            next_meeting_date: format(nextMeetingDate, 'yyyy-MM-dd'),
+            next_meeting_agenda: nextMeetingAgenda || undefined
+          })
+          .eq('id', meetings[0].id);
+
+        if (updateError) throw updateError;
+      }
+
+      toast({
+        title: "Success! 📅",
+        description: `Next meeting scheduled for ${format(nextMeetingDate, 'PPP')} at ${nextMeetingTime}`,
+      });
+
+      setShowScheduleDialog(false);
+      setNextMeetingDate(undefined);
+      setNextMeetingTime('');
+      setNextMeetingAgenda('');
+
+    } catch (error) {
+      console.error('Error scheduling meeting:', error);
+      toast({
+        title: "Error",
+        description: "Failed to schedule meeting. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const saveMeetingMinutes = async () => {
@@ -153,9 +228,18 @@ const MarketingMinutes = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold text-sage-800">✍️ Marketing Meeting Minutes</h2>
+        <Button 
+          onClick={() => setShowScheduleDialog(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          <Clock className="h-4 w-4 mr-1" />
+          Schedule Next Meeting
+        </Button>
+      </div>
+
       <Card className="p-6 border-sage-200">
-        <h2 className="text-2xl font-semibold text-sage-800 mb-6">✍️ Marketing Meeting Minutes</h2>
-        
         {/* Meeting Details */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
@@ -199,26 +283,32 @@ const MarketingMinutes = () => {
         {/* Attendees */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-sage-700 mb-2">Attendees *</label>
-          <div className="flex flex-wrap gap-2">
-            {teamMembers.map((member) => (
-              <Button
-                key={member}
-                variant={selectedAttendees.includes(member) ? "default" : "outline"}
-                size="sm"
-                onClick={() => toggleAttendee(member)}
-                className={cn(
-                  "border-sage-200",
-                  selectedAttendees.includes(member) 
-                    ? "bg-emerald-600 text-white border-emerald-600" 
-                    : "text-sage-700 hover:bg-emerald-50 hover:border-emerald-300"
-                )}
-              >
-                <User className="h-3 w-3 mr-1" />
-                {member}
-                {selectedAttendees.includes(member) && <Check className="h-3 w-3 ml-1" />}
-              </Button>
-            ))}
-          </div>
+          {teamMembers.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {teamMembers.map((member) => (
+                <Button
+                  key={member.id}
+                  variant={selectedAttendees.includes(member.name) ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleAttendee(member.name)}
+                  className={cn(
+                    "border-sage-200",
+                    selectedAttendees.includes(member.name) 
+                      ? "bg-emerald-600 text-white border-emerald-600" 
+                      : "text-sage-700 hover:bg-emerald-50 hover:border-emerald-300"
+                  )}
+                >
+                  <User className="h-3 w-3 mr-1" />
+                  {member.name}
+                  {selectedAttendees.includes(member.name) && <Check className="h-3 w-3 ml-1" />}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-amber-700">No staff members available. Please add staff members in Staff Management first.</p>
+            </div>
+          )}
         </div>
 
         {/* Meeting Notes */}
@@ -266,7 +356,7 @@ const MarketingMinutes = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {teamMembers.map((member) => (
-                      <SelectItem key={member} value={member}>{member}</SelectItem>
+                      <SelectItem key={member.id} value={member.name}>{member.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -298,49 +388,6 @@ const MarketingMinutes = () => {
         </div>
       </Card>
 
-      {/* Next Meeting */}
-      <Card className="p-6 border-sage-200 bg-gradient-to-br from-white to-blue-50">
-        <h3 className="text-lg font-semibold text-sage-800 mb-4">🗓️ Next Meeting</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-sage-700 mb-2">Scheduled Date</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal border-sage-200",
-                    !nextMeetingDate && "text-sage-500"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {nextMeetingDate ? format(nextMeetingDate, "PPP") : "Pick next meeting date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={nextMeetingDate}
-                  onSelect={setNextMeetingDate}
-                  initialFocus
-                  className="p-3 pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-sage-700 mb-2">Agenda Items</label>
-            <Input 
-              placeholder="e.g., Review action items, Plan holiday campaign" 
-              value={nextMeetingAgenda}
-              onChange={(e) => setNextMeetingAgenda(e.target.value)}
-              className="border-sage-200 focus:border-emerald-300"
-            />
-          </div>
-        </div>
-      </Card>
-
       {/* Save Button */}
       <div className="flex justify-end">
         <Button 
@@ -351,6 +398,80 @@ const MarketingMinutes = () => {
           {isLoading ? 'Saving...' : '💾 Save Meeting Minutes'}
         </Button>
       </div>
+
+      {/* Schedule Next Meeting Dialog */}
+      {showScheduleDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-sage-800 mb-4">📅 Schedule Next Meeting</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-sage-700 mb-2">Meeting Date *</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal border-sage-200",
+                        !nextMeetingDate && "text-sage-500"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {nextMeetingDate ? format(nextMeetingDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={nextMeetingDate}
+                      onSelect={setNextMeetingDate}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-sage-700 mb-2">Meeting Time *</label>
+                <Input 
+                  type="time"
+                  value={nextMeetingTime}
+                  onChange={(e) => setNextMeetingTime(e.target.value)}
+                  className="border-sage-200 focus:border-emerald-300"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-sage-700 mb-2">Agenda Items</label>
+                <Textarea 
+                  placeholder="e.g., Review action items, Plan holiday campaign" 
+                  value={nextMeetingAgenda}
+                  onChange={(e) => setNextMeetingAgenda(e.target.value)}
+                  className="border-sage-200 focus:border-emerald-300"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setShowScheduleDialog(false)}
+                className="border-sage-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={scheduleNextMeeting}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Schedule Meeting
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

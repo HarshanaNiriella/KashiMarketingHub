@@ -16,6 +16,17 @@ interface ScheduleSocialPostProps {
   onBack: () => void;
 }
 
+interface SocialPost {
+  id: number;
+  content: string;
+  platform: string;
+  type: string;
+  status: string;
+  date: string;
+  time: string;
+  media: string;
+}
+
 const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [platform, setPlatform] = useState('');
@@ -25,29 +36,102 @@ const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
   const [mediaType, setMediaType] = useState('');
   const { toast } = useToast();
 
-  const handleSchedulePost = () => {
+  const getSocialPosts = (): SocialPost[] => {
+    try {
+      const stored = localStorage.getItem('socialPosts');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Error loading social posts:', error);
+      return [];
+    }
+  };
+
+  const saveSocialPost = (post: SocialPost, status: string) => {
+    try {
+      const existingPosts = getSocialPosts();
+      const newPost = { ...post, status };
+      const updatedPosts = [...existingPosts, newPost];
+      localStorage.setItem('socialPosts', JSON.stringify(updatedPosts));
+      return true;
+    } catch (error) {
+      console.error('Error saving social post:', error);
+      return false;
+    }
+  };
+
+  const validateForm = () => {
     if (!selectedDate || !platform || !postType || !content || !time) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
         variant: "destructive"
       });
-      return;
+      return false;
     }
+    return true;
+  };
 
-    // Simulate scheduling the post
-    toast({
-      title: "Success! 🎉",
-      description: "Social media post scheduled successfully.",
-    });
+  const createPostObject = (status: string): SocialPost => {
+    const existingPosts = getSocialPosts();
+    const newId = existingPosts.length > 0 ? Math.max(...existingPosts.map(p => p.id)) + 1 : 1;
+    
+    return {
+      id: newId,
+      content,
+      platform,
+      type: postType,
+      status,
+      date: format(selectedDate!, 'yyyy-MM-dd'),
+      time,
+      media: mediaType || 'text'
+    };
+  };
 
-    // Reset form
+  const resetForm = () => {
     setSelectedDate(undefined);
     setPlatform('');
     setPostType('');
     setContent('');
     setTime('');
     setMediaType('');
+  };
+
+  const handleSaveAsDraft = () => {
+    if (!validateForm()) return;
+
+    const post = createPostObject('draft');
+    if (saveSocialPost(post, 'draft')) {
+      toast({
+        title: "Draft Saved! 📝",
+        description: "Social media post saved as draft.",
+      });
+      resetForm();
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to save draft.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSchedulePost = () => {
+    if (!validateForm()) return;
+
+    const post = createPostObject('scheduled');
+    if (saveSocialPost(post, 'scheduled')) {
+      toast({
+        title: "Success! 🎉",
+        description: "Social media post scheduled successfully.",
+      });
+      resetForm();
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to schedule post.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -70,19 +154,19 @@ const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <Select value={platform} onValueChange={setPlatform}>
             <SelectTrigger className="border-sage-200 focus:border-purple-300">
-              <SelectValue placeholder="Select platform" />
+              <SelectValue placeholder="Select platform *" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="instagram">📸 Instagram</SelectItem>
-              <SelectItem value="facebook">📘 Facebook</SelectItem>
-              <SelectItem value="twitter">🐦 Twitter</SelectItem>
-              <SelectItem value="linkedin">💼 LinkedIn</SelectItem>
+              <SelectItem value="Instagram">📸 Instagram</SelectItem>
+              <SelectItem value="Facebook">📘 Facebook</SelectItem>
+              <SelectItem value="Twitter">🐦 Twitter</SelectItem>
+              <SelectItem value="LinkedIn">💼 LinkedIn</SelectItem>
             </SelectContent>
           </Select>
 
           <Select value={postType} onValueChange={setPostType}>
             <SelectTrigger className="border-sage-200 focus:border-purple-300">
-              <SelectValue placeholder="Post type" />
+              <SelectValue placeholder="Post type *" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="post">📝 Regular Post</SelectItem>
@@ -166,8 +250,14 @@ const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
             Cancel
           </Button>
           <Button 
-            onClick={handleSchedulePost}
+            onClick={handleSaveAsDraft}
             className="bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            💾 Save as Draft
+          </Button>
+          <Button 
+            onClick={handleSchedulePost}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             📅 Schedule Post
           </Button>

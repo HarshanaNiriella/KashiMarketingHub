@@ -7,6 +7,7 @@ import MarketingMinutes from '@/components/MarketingMinutes';
 import SocialMediaPlanner from '@/components/SocialMediaPlanner';
 import Timeline from '@/components/Timeline';
 import ScheduleSocialPost from '@/components/ScheduleSocialPost';
+import StaffManagement from '@/components/StaffManagement';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -30,6 +31,11 @@ function App() {
     setActiveTab('dashboard');
   };
 
+  const handleAddMeetingMinutes = () => {
+    setActiveTab('minutes');
+    setCurrentView('minutes');
+  };
+
   const renderContent = () => {
     switch (currentView) {
       case 'dashboard':
@@ -37,6 +43,7 @@ function App() {
           <Dashboard 
             onSchedulePost={handleSchedulePost}
             onViewTimeline={handleViewTimeline}
+            onAddMeetingMinutes={handleAddMeetingMinutes}
           />
         );
       case 'minutes':
@@ -47,11 +54,14 @@ function App() {
         return <Timeline />;
       case 'schedule-post':
         return <ScheduleSocialPost onBack={handleBackToDashboard} />;
+      case 'staff':
+        return <StaffManagement />;
       default:
         return (
           <Dashboard 
             onSchedulePost={handleSchedulePost}
             onViewTimeline={handleViewTimeline}
+            onAddMeetingMinutes={handleAddMeetingMinutes}
           />
         );
     }

@@ -30,6 +30,11 @@ const SocialMediaPlanner = () => {
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [postToDelete, setPostToDelete] = useState<number | null>(null);
+  const [platform, setPlatform] = useState('');
+  const [postType, setPostType] = useState('');
+  const [content, setContent] = useState('');
+  const [time, setTime] = useState('');
+  const [mediaType, setMediaType] = useState('');
   const { toast } = useToast();
 
   // Load social posts from localStorage
@@ -93,6 +98,54 @@ const SocialMediaPlanner = () => {
     } catch (error) {
       console.error('Error saving social posts:', error);
     }
+  };
+
+  const resetForm = () => {
+    setPlatform('');
+    setPostType('');
+    setContent('');
+    setTime('');
+    setMediaType('');
+    setSelectedDate(undefined);
+  };
+
+  const validateForm = () => {
+    if (!selectedDate || !platform || !postType || !content || !time) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return false;
+    }
+    return true;
+  };
+
+  const createPost = (status: string) => {
+    if (!validateForm()) return;
+
+    const newId = socialPosts.length > 0 ? Math.max(...socialPosts.map(p => p.id)) + 1 : 1;
+    const newPost: SocialPost = {
+      id: newId,
+      content,
+      platform,
+      type: postType,
+      status,
+      date: format(selectedDate!, 'yyyy-MM-dd'),
+      time,
+      media: mediaType || 'text'
+    };
+
+    const updatedPosts = [...socialPosts, newPost];
+    saveSocialPosts(updatedPosts);
+
+    toast({
+      title: status === 'draft' ? "Draft Saved! 📝" : "Post Scheduled! 📅",
+      description: `Social media post ${status === 'draft' ? 'saved as draft' : 'scheduled successfully'}.`,
+    });
+
+    resetForm();
+    setShowNewPostForm(false);
   };
 
   const handleDeleteRequest = (postId: number) => {
@@ -180,21 +233,21 @@ const SocialMediaPlanner = () => {
           <h3 className="text-lg font-semibold text-sage-800 mb-4">✨ Create New Social Media Post</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <Select>
+            <Select value={platform} onValueChange={setPlatform}>
               <SelectTrigger className="border-sage-200 focus:border-purple-300">
-                <SelectValue placeholder="Select platform" />
+                <SelectValue placeholder="Select platform *" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="instagram">📸 Instagram</SelectItem>
-                <SelectItem value="facebook">📘 Facebook</SelectItem>
-                <SelectItem value="twitter">🐦 Twitter</SelectItem>
-                <SelectItem value="linkedin">💼 LinkedIn</SelectItem>
+                <SelectItem value="Instagram">📸 Instagram</SelectItem>
+                <SelectItem value="Facebook">📘 Facebook</SelectItem>
+                <SelectItem value="Twitter">🐦 Twitter</SelectItem>
+                <SelectItem value="LinkedIn">💼 LinkedIn</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select>
+            <Select value={postType} onValueChange={setPostType}>
               <SelectTrigger className="border-sage-200 focus:border-purple-300">
-                <SelectValue placeholder="Post type" />
+                <SelectValue placeholder="Post type *" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="post">📝 Regular Post</SelectItem>
@@ -207,16 +260,18 @@ const SocialMediaPlanner = () => {
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-sage-700 mb-2">Post Content</label>
+            <label className="block text-sm font-medium text-sage-700 mb-2">Post Content *</label>
             <Textarea 
               placeholder="Write your post content here... Use emojis to make it engaging! ✨"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
               className="min-h-24 border-sage-200 focus:border-purple-300"
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium text-sage-700 mb-2">Schedule Date</label>
+              <label className="block text-sm font-medium text-sage-700 mb-2">Schedule Date *</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -243,16 +298,18 @@ const SocialMediaPlanner = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-sage-700 mb-2">Time</label>
+              <label className="block text-sm font-medium text-sage-700 mb-2">Time *</label>
               <Input 
-                type="time" 
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
                 className="border-sage-200 focus:border-purple-300"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-sage-700 mb-2">Media Type</label>
-              <Select>
+              <Select value={mediaType} onValueChange={setMediaType}>
                 <SelectTrigger className="border-sage-200 focus:border-purple-300">
                   <SelectValue placeholder="Media" />
                 </SelectTrigger>
@@ -273,10 +330,16 @@ const SocialMediaPlanner = () => {
             >
               Cancel
             </Button>
-            <Button className="bg-purple-600 hover:bg-purple-700 text-white">
+            <Button 
+              onClick={() => createPost('draft')}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
               💾 Save as Draft
             </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button 
+              onClick={() => createPost('scheduled')}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
               ⏰ Schedule Post
             </Button>
           </div>
@@ -339,19 +402,19 @@ const SocialMediaPlanner = () => {
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
-            <p className="text-2xl font-bold text-emerald-600">8</p>
+            <p className="text-2xl font-bold text-emerald-600">{socialPosts.filter(p => p.status === 'scheduled').length}</p>
             <p className="text-sm text-sage-600">Posts Scheduled</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-purple-600">3</p>
+            <p className="text-2xl font-bold text-purple-600">{socialPosts.filter(p => p.status === 'draft').length}</p>
             <p className="text-sm text-sage-600">Drafts Pending</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-blue-600">12</p>
+            <p className="text-2xl font-bold text-blue-600">{socialPosts.filter(p => p.status === 'posted').length}</p>
             <p className="text-sm text-sage-600">Posts Published</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-amber-600">2</p>
+            <p className="text-2xl font-bold text-amber-600">{socialPosts.filter(p => p.status === 'planned').length}</p>
             <p className="text-sm text-sage-600">Needs Review</p>
           </div>
         </div>

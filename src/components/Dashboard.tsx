@@ -27,9 +27,10 @@ interface MeetingMinute {
 interface DashboardProps {
   onSchedulePost: () => void;
   onViewTimeline: () => void;
+  onAddMeetingMinutes: () => void;
 }
 
-const Dashboard = ({ onSchedulePost, onViewTimeline }: DashboardProps) => {
+const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: DashboardProps) => {
   const [lastMeeting, setLastMeeting] = useState<MeetingMinute | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -297,7 +298,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline }: DashboardProps) => {
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3">
         <Button 
-          onClick={() => window.location.href = '#'} 
+          onClick={onAddMeetingMinutes}
           className="bg-emerald-600 hover:bg-emerald-700 text-white"
         >
           ✍️ Add Meeting Minutes

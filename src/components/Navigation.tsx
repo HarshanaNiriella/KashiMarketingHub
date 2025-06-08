@@ -1,7 +1,6 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Home, Calendar, MessageSquare } from 'lucide-react';
 
 interface NavigationProps {
   activeTab: string;
@@ -9,31 +8,30 @@ interface NavigationProps {
 }
 
 const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, emoji: '🏠' },
-    { id: 'minutes', label: 'Meeting Minutes', icon: MessageSquare, emoji: '✍️' },
-    { id: 'social', label: 'Social Media', icon: Calendar, emoji: '📱' }
+  const tabs = [
+    { id: 'dashboard', label: '🏠 Dashboard', description: 'Overview & metrics' },
+    { id: 'minutes', label: '📝 Meeting Minutes', description: 'Record discussions' },
+    { id: 'social', label: '📱 Social Media', description: 'Plan content' },
+    { id: 'staff', label: '👥 Staff Management', description: 'Manage team' },
   ];
 
   return (
-    <nav className="bg-white border-b border-sage-200 px-6 py-3">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex space-x-1">
-          {navItems.map((item) => (
+    <nav className="bg-white border-b border-sage-200 sticky top-0 z-10">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex space-x-1 overflow-x-auto py-2">
+          {tabs.map((tab) => (
             <Button
-              key={item.id}
-              onClick={() => onTabChange(item.id)}
-              variant={activeTab === item.id ? "default" : "ghost"}
-              className={`
-                px-4 py-2 font-medium transition-all duration-200
-                ${activeTab === item.id 
-                  ? 'bg-emerald-600 text-white shadow-sm' 
-                  : 'text-sage-700 hover:text-emerald-600 hover:bg-emerald-50'
-                }
-              `}
+              key={tab.id}
+              variant={activeTab === tab.id ? 'default' : 'ghost'}
+              onClick={() => onTabChange(tab.id)}
+              className={`min-w-fit px-4 py-3 flex-col h-auto ${
+                activeTab === tab.id
+                  ? 'bg-sage-100 text-sage-800 border-sage-300'
+                  : 'text-sage-600 hover:text-sage-800 hover:bg-sage-50'
+              }`}
             >
-              <span className="mr-2">{item.emoji}</span>
-              {item.label}
+              <span className="font-medium">{tab.label}</span>
+              <span className="text-xs opacity-75 mt-1">{tab.description}</span>
             </Button>
           ))}
         </div>

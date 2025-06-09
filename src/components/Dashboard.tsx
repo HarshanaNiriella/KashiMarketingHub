@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import TeamNotes from '@/components/TeamNotes';
@@ -6,6 +7,7 @@ import QuickActions from '@/components/dashboard/QuickActions';
 import ActionItemsSection from '@/components/dashboard/ActionItemsSection';
 import SocialPostsSection from '@/components/dashboard/SocialPostsSection';
 import AdminPasswordDialog from '@/components/dashboard/AdminPasswordDialog';
+import { useDataSync } from '@/utils/dataSync';
 
 interface DashboardProps {
   onSchedulePost: () => void;
@@ -45,8 +47,11 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [currentItem, setCurrentItem] = useState<{ id: string; type: 'action' | 'social_post'; title: string } | null>(null);
 
-  // Admin password - in production, this should be more secure
-  const ADMIN_PASSWORD = 'admin123';
+  // Updated admin password to 'admin'
+  const ADMIN_PASSWORD = 'admin';
+
+  // Use data sync hook
+  const { syncData, refreshData } = useDataSync();
 
   useEffect(() => {
     loadActionItems();
@@ -119,11 +124,13 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      // Use the data sync refresh function
+      refreshData();
       loadActionItems();
       loadSocialPosts();
       toast({
         title: "Data Refreshed",
-        description: "All data has been synchronized.",
+        description: "All data has been synchronized across devices.",
       });
     } catch (error) {
       toast({
@@ -140,6 +147,8 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     try {
       localStorage.setItem('actionItems', JSON.stringify(items));
       setActionItems(items);
+      // Trigger data sync after saving
+      syncData();
     } catch (error) {
       console.error('Error saving action items:', error);
     }
@@ -149,6 +158,8 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     try {
       localStorage.setItem('socialPosts', JSON.stringify(posts));
       loadSocialPosts(); // Reload to update the upcoming posts
+      // Trigger data sync after saving
+      syncData();
     } catch (error) {
       console.error('Error saving social posts:', error);
     }
@@ -212,6 +223,8 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       const updatedPosts = allPosts.filter((post: SocialPost) => post.id.toString() !== deleteItemId);
       localStorage.setItem('socialPosts', JSON.stringify(updatedPosts));
       loadSocialPosts();
+      // Trigger data sync after deletion
+      syncData();
       toast({
         title: "Social Post Deleted",
         description: "The social media post has been successfully deleted.",
@@ -229,38 +242,6 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     setAdminPassword('');
     setDeleteItemId(null);
     setDeleteItemType(null);
-  };
-
-  const getStatusColor = (status: string) => {
-    const variants = {
-      pending: "bg-blue-100 text-blue-700 border-blue-200",
-      completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      under_discussion: "bg-purple-100 text-purple-700 border-purple-200",
-      delayed: "bg-orange-100 text-orange-700 border-orange-200"
-    };
-    return variants[status as keyof typeof variants] || "bg-gray-100 text-gray-700 border-gray-200";
-  };
-
-  const getPostStatusColor = (status: string) => {
-    const variants = {
-      scheduled: "bg-blue-100 text-blue-700",
-      draft: "bg-purple-100 text-purple-700",
-      planned: "bg-sage-100 text-sage-700",
-      posted: "bg-emerald-100 text-emerald-700",
-      delayed: "bg-orange-100 text-orange-700",
-      still_designing: "bg-pink-100 text-pink-700"
-    };
-    return variants[status as keyof typeof variants] || "bg-gray-100 text-gray-700";
-  };
-
-  const getPlatformEmoji = (platform: string) => {
-    switch (platform) {
-      case 'Instagram': return '📸';
-      case 'Facebook': return '📘';
-      case 'Twitter': return '🐦';
-      case 'LinkedIn': return '💼';
-      default: return '📱';
-    }
   };
 
   return (

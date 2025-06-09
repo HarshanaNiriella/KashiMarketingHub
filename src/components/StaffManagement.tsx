@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Users, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useDataSync } from '@/utils/dataSync';
 
 interface Staff {
   id: string;
@@ -35,6 +37,9 @@ const StaffManagement = () => {
   const [editPassword, setEditPassword] = useState('');
   const { toast } = useToast();
 
+  // Use data sync hook
+  const { syncData } = useDataSync();
+
   useEffect(() => {
     loadStaff();
   }, []);
@@ -54,6 +59,8 @@ const StaffManagement = () => {
     try {
       localStorage.setItem('staff', JSON.stringify(staffList));
       setStaff(staffList);
+      // Trigger data sync after saving
+      syncData();
     } catch (error) {
       console.error('Error saving staff:', error);
     }

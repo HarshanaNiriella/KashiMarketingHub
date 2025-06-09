@@ -83,8 +83,8 @@ function App() {
               className="h-10 sm:h-12 w-auto flex-shrink-0"
             />
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold text-sage-800 truncate">🧘 Kashi Wellness Marketing Hub</h1>
-              <p className="text-sage-600 text-sm sm:text-base mt-1 hidden sm:block">Streamline your wellness marketing efforts</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-sage-800 truncate">Kashi Wellness Marketing Hub</h1>
+              <p className="text-sage-600 text-sm sm:text-base mt-1 hidden sm:block">Streamline Kashi's wellness marketing efforts</p>
             </div>
           </div>
         </div>

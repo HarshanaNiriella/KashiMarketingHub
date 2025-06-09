@@ -10,7 +10,7 @@ const Footer = () => {
           <span>Made with</span>
           <Heart className="h-4 w-4 text-red-500 fill-current" />
           <span>by</span>
-          <span className="text-emerald-600 font-medium">Dr. Aharshana Niriella</span>
+          <span className="text-emerald-600 font-medium">Dr. Harshana Niriella</span>
           <span>to streamline marketing efforts of Kashi Wellness Retreat</span>
         </p>
       </div>

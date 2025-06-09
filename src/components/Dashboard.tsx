@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { CalendarClock, ListChecks, MessageCircle } from 'lucide-react';
+import { CalendarClock, ListChecks, MessageCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import TeamNotes from '@/components/TeamNotes';
@@ -36,6 +36,7 @@ interface SocialPost {
 const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: DashboardProps) => {
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [upcomingSocialPosts, setUpcomingSocialPosts] = useState<SocialPost[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
 
   const [showNotesDialog, setShowNotesDialog] = useState(false);
@@ -91,12 +92,12 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       const stored = localStorage.getItem('socialPosts');
       if (stored) {
         const posts = JSON.parse(stored);
-        // Filter posts to only include those with a date in the future
+        // Filter posts to only include those with a date in the future and status scheduled/planned
         const upcomingPosts = posts.filter((post: SocialPost) => {
           const postDate = new Date(post.date);
           const today = new Date();
-          today.setHours(0, 0, 0, 0); // Compare only dates, not times
-          return postDate >= today;
+          today.setHours(0, 0, 0, 0);
+          return postDate >= today && ['scheduled', 'planned'].includes(post.status);
         });
         
         setUpcomingSocialPosts(upcomingPosts);
@@ -106,6 +107,26 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     } catch (error) {
       console.error('Error loading social posts:', error);
       setUpcomingSocialPosts([]);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      loadActionItems();
+      loadSocialPosts();
+      toast({
+        title: "Data Refreshed",
+        description: "All data has been synchronized.",
+      });
+    } catch (error) {
+      toast({
+        title: "Refresh Failed",
+        description: "Unable to refresh data. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -189,42 +210,51 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header with Refresh Button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl sm:text-2xl font-semibold text-sage-800">Dashboard</h2>
+        <Button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          variant="outline"
+          size="sm"
+          className="border-sage-200"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+
       {/* Quick Actions */}
-      <Card className="p-6 border-sage-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="text-center">
-            <Button onClick={onSchedulePost} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
-              <CalendarClock className="h-4 w-4 mr-2" />
-              Schedule Post
-            </Button>
-          </div>
-          <div className="text-center">
-            <Button onClick={onAddMeetingMinutes} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-              <ListChecks className="h-4 w-4 mr-2" />
-              Add Minutes
-            </Button>
-          </div>
-          <div className="text-center">
-            <Button onClick={onViewTimeline} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-              <CalendarClock className="h-4 w-4 mr-2" />
-              View Timeline
-            </Button>
-          </div>
+      <Card className="p-4 sm:p-6 border-sage-200">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <Button onClick={onSchedulePost} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+            <CalendarClock className="h-4 w-4 mr-2" />
+            <span className="text-sm sm:text-base">Schedule Post</span>
+          </Button>
+          <Button onClick={onAddMeetingMinutes} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+            <ListChecks className="h-4 w-4 mr-2" />
+            <span className="text-sm sm:text-base">Add Minutes</span>
+          </Button>
+          <Button onClick={onViewTimeline} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+            <CalendarClock className="h-4 w-4 mr-2" />
+            <span className="text-sm sm:text-base">View Timeline</span>
+          </Button>
         </div>
       </Card>
 
       {/* Action Items */}
-      <Card className="p-6 border-sage-200">
+      <Card className="p-4 sm:p-6 border-sage-200">
         <h3 className="text-lg font-semibold text-sage-800 mb-4">🔥 Action Items</h3>
         <div className="space-y-4">
           {actionItems.map((item) => (
-            <div key={item.id} className="p-4 bg-white rounded-lg border border-sage-200 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <h4 className="font-medium text-sage-800 mb-1">{item.title}</h4>
-                  <p className="text-sm text-sage-600 mb-2">{item.description}</p>
-                  <div className="flex items-center space-x-3">
+            <div key={item.id} className="p-3 sm:p-4 bg-white rounded-lg border border-sage-200 hover:shadow-md transition-shadow">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-sage-800 mb-1 truncate">{item.title}</h4>
+                  <p className="text-sm text-sage-600 mb-2 line-clamp-2">{item.description}</p>
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge className={`${getStatusColor(item.status)} text-xs`}>
                       {item.status.replace('_', ' ')}
                     </Badge>
@@ -232,7 +262,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
                     <span className="text-xs text-sage-500">Assigned: {item.assignee}</span>
                   </div>
                 </div>
-                <div className="flex items-center space-x-1 ml-4">
+                <div className="flex items-center gap-1 sm:ml-4 flex-shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -242,7 +272,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
                     <MessageCircle className="h-4 w-4" />
                   </Button>
                   <Select onValueChange={(value) => handleStatusChange(item.id, value)}>
-                    <SelectTrigger className="w-32 h-8 text-xs border-sage-200">
+                    <SelectTrigger className="w-28 sm:w-32 h-8 text-xs border-sage-200">
                       <SelectValue placeholder="Update" />
                     </SelectTrigger>
                     <SelectContent>
@@ -260,51 +290,55 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       </Card>
 
       {/* Upcoming Social Media Posts */}
-      <Card className="p-6 border-sage-200">
+      <Card className="p-4 sm:p-6 border-sage-200">
         <h3 className="text-lg font-semibold text-sage-800 mb-4">📣 Upcoming Social Media Posts</h3>
         <div className="space-y-4">
-          {upcomingSocialPosts.map((post) => (
-            <div key={post.id} className="p-4 bg-gradient-to-r from-white to-purple-50 rounded-lg border border-purple-200">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="text-lg">{getPlatformEmoji(post.platform)}</span>
-                    <span className="font-medium text-sage-800">{post.platform}</span>
-                    <Badge className={getPostStatusColor(post.status)}>{post.status}</Badge>
+          {upcomingSocialPosts.length > 0 ? (
+            upcomingSocialPosts.map((post) => (
+              <div key={post.id} className="p-3 sm:p-4 bg-gradient-to-r from-white to-purple-50 rounded-lg border border-purple-200">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className="text-lg">{getPlatformEmoji(post.platform)}</span>
+                      <span className="font-medium text-sage-800">{post.platform}</span>
+                      <Badge className={getPostStatusColor(post.status)}>{post.status}</Badge>
+                    </div>
+                    <p className="text-sm text-sage-700 mb-2 line-clamp-2">{post.content.substring(0, 100)}...</p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-sage-500">
+                      <span>📅 {post.date}</span>
+                      <span>🕒 {post.time}</span>
+                      <span className="capitalize">{post.type}</span>
+                    </div>
                   </div>
-                  <p className="text-sm text-sage-700 mb-2">{post.content.substring(0, 100)}...</p>
-                  <div className="flex items-center space-x-3 text-xs text-sage-500">
-                    <span>📅 {post.date}</span>
-                    <span>🕒 {post.time}</span>
-                    <span className="capitalize">{post.type}</span>
+                  <div className="flex items-center gap-1 sm:ml-4 flex-shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleShowNotes({ id: post.id.toString(), type: 'social_post', title: post.content })}
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </Button>
+                    <Select onValueChange={(value) => handleSocialPostStatusChange(post.id, value)}>
+                      <SelectTrigger className="w-28 sm:w-32 h-8 text-xs border-sage-200">
+                        <SelectValue placeholder="Update" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="scheduled">Scheduled</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="planned">Planned</SelectItem>
+                        <SelectItem value="posted">Posted</SelectItem>
+                        <SelectItem value="delayed">Delayed</SelectItem>
+                        <SelectItem value="still_designing">Still Designing</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
-                <div className="flex items-center space-x-1 ml-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleShowNotes({ id: post.id.toString(), type: 'social_post', title: post.content })}
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                  </Button>
-                  <Select onValueChange={(value) => handleSocialPostStatusChange(post.id, value)}>
-                    <SelectTrigger className="w-32 h-8 text-xs border-sage-200">
-                      <SelectValue placeholder="Update" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="scheduled">Scheduled</SelectItem>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="planned">Planned</SelectItem>
-                      <SelectItem value="posted">Posted</SelectItem>
-                      <SelectItem value="delayed">Delayed</SelectItem>
-                      <SelectItem value="still_designing">Still Designing</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-sage-600 text-center py-8">No upcoming scheduled or planned social media posts</p>
+          )}
         </div>
       </Card>
 

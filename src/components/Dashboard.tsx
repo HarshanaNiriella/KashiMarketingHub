@@ -1,24 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { CalendarClock, ListChecks, MessageCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
 import TeamNotes from '@/components/TeamNotes';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Input } from '@/components/ui/input';
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
+import QuickActions from '@/components/dashboard/QuickActions';
+import ActionItemsSection from '@/components/dashboard/ActionItemsSection';
+import SocialPostsSection from '@/components/dashboard/SocialPostsSection';
+import AdminPasswordDialog from '@/components/dashboard/AdminPasswordDialog';
 
 interface DashboardProps {
   onSchedulePost: () => void;
@@ -237,6 +224,13 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     setAdminPassword('');
   };
 
+  const handlePasswordDialogClose = () => {
+    setShowPasswordDialog(false);
+    setAdminPassword('');
+    setDeleteItemId(null);
+    setDeleteItemType(null);
+  };
+
   const getStatusColor = (status: string) => {
     const variants = {
       pending: "bg-blue-100 text-blue-700 border-blue-200",
@@ -271,193 +265,35 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header with Refresh Button */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl sm:text-2xl font-semibold text-sage-800">Dashboard</h2>
-        <Button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          variant="outline"
-          size="sm"
-          className="border-sage-200"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
+      <DashboardHeader onRefresh={handleRefresh} isRefreshing={isRefreshing} />
 
-      {/* Quick Actions */}
-      <Card className="p-4 sm:p-6 border-sage-200">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <Button onClick={onSchedulePost} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
-            <CalendarClock className="h-4 w-4 mr-2" />
-            <span className="text-sm sm:text-base">Schedule Post</span>
-          </Button>
-          <Button onClick={onAddMeetingMinutes} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
-            <ListChecks className="h-4 w-4 mr-2" />
-            <span className="text-sm sm:text-base">Add Minutes</span>
-          </Button>
-          <Button onClick={onViewTimeline} className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-            <CalendarClock className="h-4 w-4 mr-2" />
-            <span className="text-sm sm:text-base">View Timeline</span>
-          </Button>
-        </div>
-      </Card>
+      <QuickActions 
+        onSchedulePost={onSchedulePost}
+        onAddMeetingMinutes={onAddMeetingMinutes}
+        onViewTimeline={onViewTimeline}
+      />
 
-      {/* Action Items */}
-      <Card className="p-4 sm:p-6 border-sage-200">
-        <h3 className="text-lg font-semibold text-sage-800 mb-4">🔥 Action Items</h3>
-        <div className="space-y-4">
-          {actionItems.map((item) => (
-            <div key={item.id} className="p-3 sm:p-4 bg-white rounded-lg border border-sage-200 hover:shadow-md transition-shadow">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sage-800 mb-1 truncate">{item.title}</h4>
-                  <p className="text-sm text-sage-600 mb-2 line-clamp-2">{item.description}</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className={`${getStatusColor(item.status)} text-xs`}>
-                      {item.status.replace('_', ' ')}
-                    </Badge>
-                    <span className="text-xs text-sage-500">Due: {item.dueDate}</span>
-                    <span className="text-xs text-sage-500">Assigned: {item.assignee}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 sm:ml-4 flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleShowNotes({ id: item.id, type: 'action', title: item.title })}
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteClick(item.id, 'action')}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                  <Select onValueChange={(value) => handleStatusChange(item.id, value)}>
-                    <SelectTrigger className="w-28 sm:w-32 h-8 text-xs border-sage-200">
-                      <SelectValue placeholder="Update" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="under_discussion">Under Discussion</SelectItem>
-                      <SelectItem value="delayed">Delayed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <ActionItemsSection 
+        actionItems={actionItems}
+        onStatusChange={handleStatusChange}
+        onShowNotes={handleShowNotes}
+        onDeleteClick={handleDeleteClick}
+      />
 
-      {/* Upcoming Social Media Posts */}
-      <Card className="p-4 sm:p-6 border-sage-200">
-        <h3 className="text-lg font-semibold text-sage-800 mb-4">📣 Upcoming Social Media Posts</h3>
-        <div className="space-y-4">
-          {upcomingSocialPosts.length > 0 ? (
-            upcomingSocialPosts.map((post) => (
-              <div key={post.id} className="p-3 sm:p-4 bg-gradient-to-r from-white to-purple-50 rounded-lg border border-purple-200">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <span className="text-lg">{getPlatformEmoji(post.platform)}</span>
-                      <span className="font-medium text-sage-800">{post.platform}</span>
-                      <Badge className={getPostStatusColor(post.status)}>{post.status}</Badge>
-                    </div>
-                    <p className="text-sm text-sage-700 mb-2 line-clamp-2">{post.content.substring(0, 100)}...</p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-sage-500">
-                      <span>📅 {post.date}</span>
-                      <span>🕒 {post.time}</span>
-                      <span className="capitalize">{post.type}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 sm:ml-4 flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleShowNotes({ id: post.id.toString(), type: 'social_post', title: post.content })}
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteClick(post.id.toString(), 'social')}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                    <Select onValueChange={(value) => handleSocialPostStatusChange(post.id, value)}>
-                      <SelectTrigger className="w-28 sm:w-32 h-8 text-xs border-sage-200">
-                        <SelectValue placeholder="Update" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="scheduled">Scheduled</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="planned">Planned</SelectItem>
-                        <SelectItem value="posted">Posted</SelectItem>
-                        <SelectItem value="delayed">Delayed</SelectItem>
-                        <SelectItem value="still_designing">Still Designing</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-sage-600 text-center py-8">No upcoming scheduled or planned social media posts</p>
-          )}
-        </div>
-      </Card>
+      <SocialPostsSection 
+        upcomingSocialPosts={upcomingSocialPosts}
+        onSocialPostStatusChange={handleSocialPostStatusChange}
+        onShowNotes={handleShowNotes}
+        onDeleteClick={handleDeleteClick}
+      />
 
-      {/* Admin Password Dialog */}
-      <AlertDialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Admin Authentication Required</AlertDialogTitle>
-            <AlertDialogDescription>
-              Please enter the admin password to delete this item.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="py-4">
-            <Input
-              type="password"
-              placeholder="Enter admin password"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleDeleteConfirm();
-                }
-              }}
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setShowPasswordDialog(false);
-              setAdminPassword('');
-              setDeleteItemId(null);
-              setDeleteItemType(null);
-            }}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDeleteConfirm}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <AdminPasswordDialog 
+        isOpen={showPasswordDialog}
+        onClose={handlePasswordDialogClose}
+        onConfirm={handleDeleteConfirm}
+        password={adminPassword}
+        onPasswordChange={setAdminPassword}
+      />
 
       <TeamNotes
         itemId={currentItem?.id || ''}

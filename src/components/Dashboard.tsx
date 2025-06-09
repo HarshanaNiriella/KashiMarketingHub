@@ -3,10 +3,22 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { CalendarClock, ListChecks, MessageCircle, RefreshCw } from 'lucide-react';
+import { CalendarClock, ListChecks, MessageCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import TeamNotes from '@/components/TeamNotes';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Input } from '@/components/ui/input';
 
 interface DashboardProps {
   onSchedulePost: () => void;
@@ -37,10 +49,17 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [upcomingSocialPosts, setUpcomingSocialPosts] = useState<SocialPost[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
+  const [deleteItemType, setDeleteItemType] = useState<'action' | 'social' | null>(null);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const { toast } = useToast();
 
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [currentItem, setCurrentItem] = useState<{ id: string; type: 'action' | 'social_post'; title: string } | null>(null);
+
+  // Admin password - in production, this should be more secure
+  const ADMIN_PASSWORD = 'admin123';
 
   useEffect(() => {
     loadActionItems();
@@ -177,6 +196,47 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     setShowNotesDialog(true);
   };
 
+  const handleDeleteClick = (id: string, type: 'action' | 'social') => {
+    setDeleteItemId(id);
+    setDeleteItemType(type);
+    setShowPasswordDialog(true);
+    setAdminPassword('');
+  };
+
+  const handleDeleteConfirm = () => {
+    if (adminPassword !== ADMIN_PASSWORD) {
+      toast({
+        title: "Access Denied",
+        description: "Incorrect admin password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (deleteItemType === 'action' && deleteItemId) {
+      const updatedItems = actionItems.filter(item => item.id !== deleteItemId);
+      saveActionItems(updatedItems);
+      toast({
+        title: "Action Item Deleted",
+        description: "The action item has been successfully deleted.",
+      });
+    } else if (deleteItemType === 'social' && deleteItemId) {
+      const allPosts = JSON.parse(localStorage.getItem('socialPosts') || '[]');
+      const updatedPosts = allPosts.filter((post: SocialPost) => post.id.toString() !== deleteItemId);
+      localStorage.setItem('socialPosts', JSON.stringify(updatedPosts));
+      loadSocialPosts();
+      toast({
+        title: "Social Post Deleted",
+        description: "The social media post has been successfully deleted.",
+      });
+    }
+
+    setShowPasswordDialog(false);
+    setDeleteItemId(null);
+    setDeleteItemType(null);
+    setAdminPassword('');
+  };
+
   const getStatusColor = (status: string) => {
     const variants = {
       pending: "bg-blue-100 text-blue-700 border-blue-200",
@@ -271,6 +331,14 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
                   >
                     <MessageCircle className="h-4 w-4" />
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteClick(item.id, 'action')}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                   <Select onValueChange={(value) => handleStatusChange(item.id, value)}>
                     <SelectTrigger className="w-28 sm:w-32 h-8 text-xs border-sage-200">
                       <SelectValue placeholder="Update" />
@@ -319,6 +387,14 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
                     >
                       <MessageCircle className="h-4 w-4" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteClick(post.id.toString(), 'social')}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                     <Select onValueChange={(value) => handleSocialPostStatusChange(post.id, value)}>
                       <SelectTrigger className="w-28 sm:w-32 h-8 text-xs border-sage-200">
                         <SelectValue placeholder="Update" />
@@ -341,6 +417,47 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
           )}
         </div>
       </Card>
+
+      {/* Admin Password Dialog */}
+      <AlertDialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Admin Authentication Required</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please enter the admin password to delete this item.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Input
+              type="password"
+              placeholder="Enter admin password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleDeleteConfirm();
+                }
+              }}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowPasswordDialog(false);
+              setAdminPassword('');
+              setDeleteItemId(null);
+              setDeleteItemType(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <TeamNotes
         itemId={currentItem?.id || ''}

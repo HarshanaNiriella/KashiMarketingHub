@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,11 +43,27 @@ const StaffManagement = () => {
     loadStaff();
   }, []);
 
+  // Listen for data refresh events
+  useEffect(() => {
+    const handleDataRefresh = () => {
+      console.log('StaffManagement received data refresh event');
+      loadStaff();
+    };
+
+    window.addEventListener('dataRefresh', handleDataRefresh);
+    
+    return () => {
+      window.removeEventListener('dataRefresh', handleDataRefresh);
+    };
+  }, []);
+
   const loadStaff = () => {
     try {
       const stored = localStorage.getItem('staff');
       if (stored) {
-        setStaff(JSON.parse(stored));
+        const staffData = JSON.parse(stored);
+        setStaff(staffData);
+        console.log('Loaded staff members:', staffData.length);
       }
     } catch (error) {
       console.error('Error loading staff:', error);
@@ -61,6 +76,13 @@ const StaffManagement = () => {
       setStaff(staffList);
       // Trigger data sync after saving
       syncData();
+      // Trigger storage event for other tabs
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'staff',
+        newValue: JSON.stringify(staffList),
+        storageArea: localStorage
+      }));
+      console.log('Saved staff members:', staffList.length);
     } catch (error) {
       console.error('Error saving staff:', error);
     }

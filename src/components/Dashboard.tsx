@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import TeamNotes from '@/components/TeamNotes';
@@ -47,7 +46,6 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [currentItem, setCurrentItem] = useState<{ id: string; type: 'action' | 'social_post'; title: string } | null>(null);
 
-  // Updated admin password to 'admin'
   const ADMIN_PASSWORD = 'admin';
 
   // Use data sync hook
@@ -58,11 +56,28 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     loadSocialPosts();
   }, []);
 
+  // Listen for data refresh events
+  useEffect(() => {
+    const handleDataRefresh = () => {
+      console.log('Dashboard received data refresh event');
+      loadActionItems();
+      loadSocialPosts();
+    };
+
+    window.addEventListener('dataRefresh', handleDataRefresh);
+    
+    return () => {
+      window.removeEventListener('dataRefresh', handleDataRefresh);
+    };
+  }, []);
+
   const loadActionItems = () => {
     try {
       const stored = localStorage.getItem('actionItems');
       if (stored) {
-        setActionItems(JSON.parse(stored));
+        const items = JSON.parse(stored);
+        setActionItems(items);
+        console.log('Loaded action items:', items.length);
       } else {
         const defaultActions: ActionItem[] = [
           {
@@ -112,6 +127,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
         });
         
         setUpcomingSocialPosts(upcomingPosts);
+        console.log('Loaded social posts:', upcomingPosts.length);
       } else {
         setUpcomingSocialPosts([]);
       }
@@ -126,20 +142,24 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     try {
       // Use the data sync refresh function
       refreshData();
-      loadActionItems();
-      loadSocialPosts();
-      toast({
-        title: "Data Refreshed",
-        description: "All data has been synchronized across devices.",
-      });
+      
+      // Add a small delay before reloading to ensure sync completes
+      setTimeout(() => {
+        loadActionItems();
+        loadSocialPosts();
+        setIsRefreshing(false);
+        toast({
+          title: "Data Refreshed",
+          description: "All data has been synchronized across devices.",
+        });
+      }, 1000);
     } catch (error) {
+      setIsRefreshing(false);
       toast({
         title: "Refresh Failed",
         description: "Unable to refresh data. Please try again.",
         variant: "destructive"
       });
-    } finally {
-      setIsRefreshing(false);
     }
   };
 
@@ -149,6 +169,12 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       setActionItems(items);
       // Trigger data sync after saving
       syncData();
+      // Trigger storage event for other tabs
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'actionItems',
+        newValue: JSON.stringify(items),
+        storageArea: localStorage
+      }));
     } catch (error) {
       console.error('Error saving action items:', error);
     }
@@ -160,6 +186,12 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       loadSocialPosts(); // Reload to update the upcoming posts
       // Trigger data sync after saving
       syncData();
+      // Trigger storage event for other tabs
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'socialPosts',
+        newValue: JSON.stringify(posts),
+        storageArea: localStorage
+      }));
     } catch (error) {
       console.error('Error saving social posts:', error);
     }
@@ -221,10 +253,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     } else if (deleteItemType === 'social' && deleteItemId) {
       const allPosts = JSON.parse(localStorage.getItem('socialPosts') || '[]');
       const updatedPosts = allPosts.filter((post: SocialPost) => post.id.toString() !== deleteItemId);
-      localStorage.setItem('socialPosts', JSON.stringify(updatedPosts));
-      loadSocialPosts();
-      // Trigger data sync after deletion
-      syncData();
+      saveSocialPosts(updatedPosts);
       toast({
         title: "Social Post Deleted",
         description: "The social media post has been successfully deleted.",

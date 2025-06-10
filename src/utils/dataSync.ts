@@ -67,7 +67,6 @@ export const useDataSync = () => {
 
   const refreshData = useCallback(() => {
     try {
-      // Force a page refresh to reload all data
       console.log('Refreshing data across all components...');
       syncData();
       
@@ -75,9 +74,6 @@ export const useDataSync = () => {
       window.dispatchEvent(new CustomEvent('dataRefresh', { 
         detail: { timestamp: new Date().toISOString() } 
       }));
-      
-      // Optional: trigger a full page reload if needed
-      // window.location.reload();
     } catch (error) {
       console.error('Error refreshing data:', error);
     }
@@ -87,18 +83,6 @@ export const useDataSync = () => {
     try {
       console.log('Force syncing all data...');
       syncData();
-      
-      // Clear any cached data and force a reload
-      const keys = ['actionItems', 'socialPosts', 'staff'];
-      keys.forEach(key => {
-        const data = localStorage.getItem(key);
-        if (data) {
-          // Re-save to trigger storage events
-          localStorage.setItem(key, data);
-        }
-      });
-      
-      // Trigger refresh
       refreshData();
     } catch (error) {
       console.error('Error force syncing:', error);
@@ -109,30 +93,36 @@ export const useDataSync = () => {
     // Sync data on component mount
     syncData();
 
-    // Set up periodic sync every 15 seconds (more frequent)
+    // Set up periodic sync every 30 seconds (reduced frequency)
     const interval = setInterval(() => {
       if (checkForUpdates()) {
         syncData();
       }
-    }, 15000);
+    }, 30000);
 
     // Listen for storage changes from other tabs/windows
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key && ['actionItems', 'socialPosts', 'staff'].includes(event.key)) {
         console.log(`Storage change detected for ${event.key}`);
-        syncData();
         
-        // Trigger a refresh event
-        window.dispatchEvent(new CustomEvent('dataRefresh', { 
-          detail: { key: event.key, timestamp: new Date().toISOString() } 
-        }));
+        // Add a small delay to prevent conflicts
+        setTimeout(() => {
+          syncData();
+          // Trigger a refresh event
+          window.dispatchEvent(new CustomEvent('dataRefresh', { 
+            detail: { key: event.key, timestamp: new Date().toISOString() } 
+          }));
+        }, 500);
       }
     };
 
     // Listen for custom refresh events
     const handleDataRefresh = (event: CustomEvent) => {
       console.log('Data refresh event received:', event.detail);
-      syncData();
+      // Add a small delay to prevent multiple rapid syncs
+      setTimeout(() => {
+        syncData();
+      }, 100);
     };
 
     // Listen for visibility change (when user switches tabs/apps)
@@ -141,19 +131,29 @@ export const useDataSync = () => {
         console.log('Tab became visible, checking for updates...');
         setTimeout(() => {
           forceSync();
-        }, 1000); // Small delay to ensure everything is loaded
+        }, 1000);
       }
+    };
+
+    // Listen for focus events (when user comes back to the window)
+    const handleFocus = () => {
+      console.log('Window focused, syncing data...');
+      setTimeout(() => {
+        forceSync();
+      }, 500);
     };
 
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('dataRefresh', handleDataRefresh as EventListener);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('dataRefresh', handleDataRefresh as EventListener);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [syncData, checkForUpdates, forceSync]);
 

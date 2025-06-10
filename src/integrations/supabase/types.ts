@@ -226,6 +226,72 @@ export type Database = {
         }
         Relationships: []
       }
+      social_posts: {
+        Row: {
+          content: string
+          created_at: string
+          date: string
+          id: number
+          media: string | null
+          platform: string
+          status: string
+          time: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          date: string
+          id?: number
+          media?: string | null
+          platform: string
+          status?: string
+          time: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          date?: string
+          id?: number
+          media?: string | null
+          platform?: string
+          status?: string
+          time?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staff: {
+        Row: {
+          created_at: string
+          department: string
+          designation: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department: string
+          designation: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          designation?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

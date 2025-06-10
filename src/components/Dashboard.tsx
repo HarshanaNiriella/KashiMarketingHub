@@ -7,7 +7,6 @@ import QuickActions from '@/components/dashboard/QuickActions';
 import ActionItemsSection from '@/components/dashboard/ActionItemsSection';
 import SocialPostsSection from '@/components/dashboard/SocialPostsSection';
 import AdminPasswordDialog from '@/components/dashboard/AdminPasswordDialog';
-import { useDataSync } from '@/utils/dataSync';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Calendar, Clock, Users } from 'lucide-react';
@@ -21,11 +20,11 @@ interface DashboardProps {
 
 interface ActionItem {
   id: string;
-  title: string;
-  description: string;
+  task: string;
   status: string;
-  dueDate: string;
+  due_date: string;
   assignee: string;
+  priority: string;
 }
 
 interface SocialPost {
@@ -64,24 +63,62 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
 
   const ADMIN_PASSWORD = 'admin';
 
-  // Use data sync hook
-  const { syncData, refreshData } = useDataSync();
-
   useEffect(() => {
     loadAllData();
-  }, []);
-
-  // Listen for data refresh events
-  useEffect(() => {
-    const handleDataRefresh = () => {
-      console.log('Dashboard received data refresh event');
-      loadAllData();
-    };
-
-    window.addEventListener('dataRefresh', handleDataRefresh);
     
+    // Set up real-time subscriptions
+    const actionItemsChannel = supabase
+      .channel('action-items-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'action_items'
+        },
+        () => {
+          console.log('Action items changed, reloading...');
+          loadActionItems();
+        }
+      )
+      .subscribe();
+
+    const socialPostsChannel = supabase
+      .channel('social-posts-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'social_posts'
+        },
+        () => {
+          console.log('Social posts changed, reloading...');
+          loadSocialPosts();
+        }
+      )
+      .subscribe();
+
+    const meetingsChannel = supabase
+      .channel('meetings-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meeting_minutes'
+        },
+        () => {
+          console.log('Meeting minutes changed, reloading...');
+          loadMeetingInfo();
+        }
+      )
+      .subscribe();
+
     return () => {
-      window.removeEventListener('dataRefresh', handleDataRefresh);
+      supabase.removeChannel(actionItemsChannel);
+      supabase.removeChannel(socialPostsChannel);
+      supabase.removeChannel(meetingsChannel);
     };
   }, []);
 
@@ -95,98 +132,33 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
 
   const loadActionItems = async () => {
     try {
-      // Load from both localStorage and Supabase
-      const localStored = localStorage.getItem('actionItems');
-      let localItems: ActionItem[] = [];
-      
-      if (localStored) {
-        localItems = JSON.parse(localStored);
-      } else {
-        // Default action items if none exist
-        const defaultActions: ActionItem[] = [
-          {
-            id: '1',
-            title: 'Brainstorming Session',
-            description: 'Discuss Q1 marketing strategies.',
-            status: 'pending',
-            dueDate: '2024-12-15',
-            assignee: 'Marketing Team'
-          },
-          {
-            id: '2',
-            title: 'Content Calendar Review',
-            description: 'Finalize content for January.',
-            status: 'under_discussion',
-            dueDate: '2024-12-20',
-            assignee: 'Content Team'
-          },
-          {
-            id: '3',
-            title: 'Social Media Audit',
-            description: 'Analyze performance metrics.',
-            status: 'completed',
-            dueDate: '2024-12-25',
-            assignee: 'Analytics Team'
-          }
-        ];
-        localItems = defaultActions;
-        localStorage.setItem('actionItems', JSON.stringify(defaultActions));
-      }
-
-      // Also fetch from Supabase action_items table
-      const { data: supabaseItems, error } = await supabase
+      const { data, error } = await supabase
         .from('action_items')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && supabaseItems) {
-        // Convert Supabase format to local format
-        const convertedItems: ActionItem[] = supabaseItems.map(item => ({
-          id: item.id,
-          title: item.task,
-          description: item.task,
-          status: item.status,
-          dueDate: item.due_date || new Date().toISOString().split('T')[0],
-          assignee: item.assignee
-        }));
+      if (error) throw error;
 
-        // Merge with local items (avoiding duplicates)
-        const allItems = [...localItems];
-        convertedItems.forEach(supabaseItem => {
-          if (!allItems.find(localItem => localItem.id === supabaseItem.id)) {
-            allItems.push(supabaseItem);
-          }
-        });
-
-        setActionItems(allItems);
-        console.log('Loaded action items:', allItems.length);
-      } else {
-        setActionItems(localItems);
-        console.log('Loaded local action items:', localItems.length);
-      }
+      setActionItems(data || []);
+      console.log('Loaded action items:', data?.length || 0);
     } catch (error) {
       console.error('Error loading action items:', error);
     }
   };
 
-  const loadSocialPosts = () => {
+  const loadSocialPosts = async () => {
     try {
-      const stored = localStorage.getItem('socialPosts');
-      if (stored) {
-        const posts = JSON.parse(stored);
-        // Filter posts to only include those with a date in the future and status scheduled/planned
-        const upcomingPosts = posts.filter((post: SocialPost) => {
-          const postDate = new Date(post.date);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          return postDate >= today && ['scheduled', 'planned'].includes(post.status);
-        });
-        
-        setUpcomingSocialPosts(upcomingPosts);
-        console.log('Loaded social posts:', upcomingPosts.length);
-      } else {
-        setUpcomingSocialPosts([]);
-      }
+      const { data, error } = await supabase
+        .from('social_posts')
+        .select('*')
+        .gte('date', new Date().toISOString().split('T')[0])
+        .in('status', ['scheduled', 'planned'])
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+
+      setUpcomingSocialPosts(data || []);
+      console.log('Loaded upcoming social posts:', data?.length || 0);
     } catch (error) {
       console.error('Error loading social posts:', error);
       setUpcomingSocialPosts([]);
@@ -201,7 +173,6 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
         .order('meeting_date', { ascending: false });
 
       if (!error && meetings && meetings.length > 0) {
-        // Find last meeting (most recent past or today)
         const today = new Date();
         today.setHours(23, 59, 59, 999);
         
@@ -209,7 +180,6 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
           new Date(meeting.meeting_date) <= today
         );
 
-        // Find next meeting (future)
         const nextMeeting = meetings.find(meeting => 
           new Date(meeting.meeting_date) > today
         );
@@ -234,84 +204,66 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Use the data sync refresh function
-      refreshData();
-      
-      // Add a small delay before reloading to ensure sync completes
-      setTimeout(async () => {
-        await loadAllData();
-        setIsRefreshing(false);
-        toast({
-          title: "Data Refreshed",
-          description: "All data has been synchronized across devices.",
-        });
-      }, 1000);
+      await loadAllData();
+      toast({
+        title: "Data Refreshed",
+        description: "All data has been synchronized across devices.",
+      });
     } catch (error) {
-      setIsRefreshing(false);
       toast({
         title: "Refresh Failed",
         description: "Unable to refresh data. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
-  const saveActionItems = (items: ActionItem[]) => {
+  const handleStatusChange = async (id: string, status: string) => {
     try {
-      localStorage.setItem('actionItems', JSON.stringify(items));
-      setActionItems(items);
-      // Trigger data sync after saving
-      syncData();
-      // Trigger storage event for other tabs
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'actionItems',
-        newValue: JSON.stringify(items),
-        storageArea: localStorage
-      }));
+      const { error } = await supabase
+        .from('action_items')
+        .update({ status })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Status Updated",
+        description: `Action item status updated to ${status.replace('_', ' ')}.`,
+      });
     } catch (error) {
-      console.error('Error saving action items:', error);
+      console.error('Error updating status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update status.",
+        variant: "destructive"
+      });
     }
   };
 
-  const saveSocialPosts = (posts: SocialPost[]) => {
+  const handleSocialPostStatusChange = async (id: number, status: string) => {
     try {
-      localStorage.setItem('socialPosts', JSON.stringify(posts));
-      loadSocialPosts(); // Reload to update the upcoming posts
-      // Trigger data sync after saving
-      syncData();
-      // Trigger storage event for other tabs
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'socialPosts',
-        newValue: JSON.stringify(posts),
-        storageArea: localStorage
-      }));
+      const { error } = await supabase
+        .from('social_posts')
+        .update({ status })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Post Status Updated",
+        description: `Social media post status updated to ${status.replace('_', ' ')}.`,
+      });
     } catch (error) {
-      console.error('Error saving social posts:', error);
+      console.error('Error updating social post status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update post status.",
+        variant: "destructive"
+      });
     }
-  };
-
-  const handleStatusChange = (id: string, status: string) => {
-    const updatedItems = actionItems.map(item =>
-      item.id === id ? { ...item, status } : item
-    );
-    saveActionItems(updatedItems);
-
-    toast({
-      title: "Status Updated",
-      description: `Action item status updated to ${status.replace('_', ' ')}.`,
-    });
-  };
-
-  const handleSocialPostStatusChange = (id: number, status: string) => {
-    const updatedPosts = upcomingSocialPosts.map(post =>
-      post.id === id ? { ...post, status } : post
-    );
-    saveSocialPosts(updatedPosts);
-
-    toast({
-      title: "Post Status Updated",
-      description: `Social media post status updated to ${status.replace('_', ' ')}.`,
-    });
   };
 
   const handleShowNotes = (item: { id: string; type: 'action' | 'social_post'; title: string }) => {
@@ -326,7 +278,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     setAdminPassword('');
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (adminPassword !== ADMIN_PASSWORD) {
       toast({
         title: "Access Denied",
@@ -336,20 +288,38 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       return;
     }
 
-    if (deleteItemType === 'action' && deleteItemId) {
-      const updatedItems = actionItems.filter(item => item.id !== deleteItemId);
-      saveActionItems(updatedItems);
+    try {
+      if (deleteItemType === 'action' && deleteItemId) {
+        const { error } = await supabase
+          .from('action_items')
+          .delete()
+          .eq('id', deleteItemId);
+
+        if (error) throw error;
+
+        toast({
+          title: "Action Item Deleted",
+          description: "The action item has been successfully deleted.",
+        });
+      } else if (deleteItemType === 'social' && deleteItemId) {
+        const { error } = await supabase
+          .from('social_posts')
+          .delete()
+          .eq('id', parseInt(deleteItemId));
+
+        if (error) throw error;
+
+        toast({
+          title: "Social Post Deleted",
+          description: "The social media post has been successfully deleted.",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
       toast({
-        title: "Action Item Deleted",
-        description: "The action item has been successfully deleted.",
-      });
-    } else if (deleteItemType === 'social' && deleteItemId) {
-      const allPosts = JSON.parse(localStorage.getItem('socialPosts') || '[]');
-      const updatedPosts = allPosts.filter((post: SocialPost) => post.id.toString() !== deleteItemId);
-      saveSocialPosts(updatedPosts);
-      toast({
-        title: "Social Post Deleted",
-        description: "The social media post has been successfully deleted.",
+        title: "Error",
+        description: "Failed to delete item.",
+        variant: "destructive"
       });
     }
 
@@ -365,6 +335,16 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     setDeleteItemId(null);
     setDeleteItemType(null);
   };
+
+  // Convert Supabase action items to dashboard format
+  const dashboardActionItems = actionItems.map(item => ({
+    id: item.id,
+    title: item.task,
+    description: item.task,
+    status: item.status,
+    dueDate: item.due_date || new Date().toISOString().split('T')[0],
+    assignee: item.assignee
+  }));
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -418,7 +398,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       />
 
       <ActionItemsSection 
-        actionItems={actionItems}
+        actionItems={dashboardActionItems}
         onStatusChange={handleStatusChange}
         onShowNotes={handleShowNotes}
         onDeleteClick={handleDeleteClick}

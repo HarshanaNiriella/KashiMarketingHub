@@ -11,20 +11,10 @@ import { Calendar as CalendarIcon, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ScheduleSocialPostProps {
   onBack: () => void;
-}
-
-interface SocialPost {
-  id: number;
-  content: string;
-  platform: string;
-  type: string;
-  status: string;
-  date: string;
-  time: string;
-  media: string;
 }
 
 const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
@@ -34,30 +24,8 @@ const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
   const [content, setContent] = useState('');
   const [time, setTime] = useState('');
   const [mediaType, setMediaType] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-
-  const getSocialPosts = (): SocialPost[] => {
-    try {
-      const stored = localStorage.getItem('socialPosts');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Error loading social posts:', error);
-      return [];
-    }
-  };
-
-  const saveSocialPost = (post: SocialPost, status: string) => {
-    try {
-      const existingPosts = getSocialPosts();
-      const newPost = { ...post, status };
-      const updatedPosts = [...existingPosts, newPost];
-      localStorage.setItem('socialPosts', JSON.stringify(updatedPosts));
-      return true;
-    } catch (error) {
-      console.error('Error saving social post:', error);
-      return false;
-    }
-  };
 
   const validateForm = () => {
     if (!selectedDate || !platform || !postType || !content || !time) {
@@ -71,12 +39,8 @@ const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
     return true;
   };
 
-  const createPostObject = (status: string): SocialPost => {
-    const existingPosts = getSocialPosts();
-    const newId = existingPosts.length > 0 ? Math.max(...existingPosts.map(p => p.id)) + 1 : 1;
-    
+  const createPostObject = (status: string) => {
     return {
-      id: newId,
       content,
       platform,
       type: postType,
@@ -96,11 +60,31 @@ const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
     setMediaType('');
   };
 
-  const handleSaveAsDraft = () => {
+  const saveSocialPost = async (status: string) => {
     if (!validateForm()) return;
 
-    const post = createPostObject('draft');
-    if (saveSocialPost(post, 'draft')) {
+    try {
+      setIsSubmitting(true);
+      const post = createPostObject(status);
+      
+      const { error } = await supabase
+        .from('social_posts')
+        .insert([post]);
+
+      if (error) throw error;
+
+      return true;
+    } catch (error) {
+      console.error('Error saving social post:', error);
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveAsDraft = async () => {
+    const success = await saveSocialPost('draft');
+    if (success) {
       toast({
         title: "Draft Saved! 📝",
         description: "Social media post saved as draft.",
@@ -115,11 +99,9 @@ const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
     }
   };
 
-  const handleSchedulePost = () => {
-    if (!validateForm()) return;
-
-    const post = createPostObject('scheduled');
-    if (saveSocialPost(post, 'scheduled')) {
+  const handleSchedulePost = async () => {
+    const success = await saveSocialPost('scheduled');
+    if (success) {
       toast({
         title: "Success! 🎉",
         description: "Social media post scheduled successfully.",
@@ -246,18 +228,21 @@ const ScheduleSocialPost = ({ onBack }: ScheduleSocialPostProps) => {
             variant="outline" 
             onClick={onBack}
             className="border-sage-200 text-sage-700"
+            disabled={isSubmitting}
           >
             Cancel
           </Button>
           <Button 
             onClick={handleSaveAsDraft}
             className="bg-purple-600 hover:bg-purple-700 text-white"
+            disabled={isSubmitting}
           >
             💾 Save as Draft
           </Button>
           <Button 
             onClick={handleSchedulePost}
             className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={isSubmitting}
           >
             📅 Schedule Post
           </Button>

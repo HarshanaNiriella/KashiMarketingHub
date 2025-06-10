@@ -19,48 +19,6 @@ interface TimelineItem {
   status?: string;
 }
 
-interface SocialPost {
-  id: number;
-  content: string;
-  platform: string;
-  type: string;
-  status: string;
-  date: string;
-  time: string;
-  media: string;
-}
-
-interface ActionItem {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  dueDate: string;
-  assignee: string;
-}
-
-// Get social posts from localStorage
-const getSocialPosts = (): SocialPost[] => {
-  try {
-    const stored = localStorage.getItem('socialPosts');
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Error loading social posts:', error);
-    return [];
-  }
-};
-
-// Get action items from localStorage
-const getActionItems = (): ActionItem[] => {
-  try {
-    const stored = localStorage.getItem('actionItems');
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Error loading action items:', error);
-    return [];
-  }
-};
-
 const Timeline = () => {
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,28 +29,60 @@ const Timeline = () => {
 
   useEffect(() => {
     fetchTimelineData();
-  }, []);
-
-  // Listen for data refresh events
-  useEffect(() => {
-    const handleDataRefresh = () => {
-      console.log('Timeline received data refresh event');
-      fetchTimelineData();
-    };
-
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key && ['socialPosts', 'actionItems'].includes(event.key)) {
-        console.log(`Timeline: Storage change detected for ${event.key}`);
-        fetchTimelineData();
-      }
-    };
-
-    window.addEventListener('dataRefresh', handleDataRefresh);
-    window.addEventListener('storage', handleStorageChange);
     
+    // Set up real-time subscriptions
+    const meetingsChannel = supabase
+      .channel('timeline-meetings')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meeting_minutes'
+        },
+        () => {
+          console.log('Meeting minutes changed, reloading timeline...');
+          fetchTimelineData();
+        }
+      )
+      .subscribe();
+
+    const socialPostsChannel = supabase
+      .channel('timeline-social-posts')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'social_posts'
+        },
+        () => {
+          console.log('Social posts changed, reloading timeline...');
+          fetchTimelineData();
+        }
+      )
+      .subscribe();
+
+    const actionItemsChannel = supabase
+      .channel('timeline-action-items')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'action_items'
+        },
+        () => {
+          console.log('Action items changed, reloading timeline...');
+          fetchTimelineData();
+        }
+      )
+      .subscribe();
+
     return () => {
-      window.removeEventListener('dataRefresh', handleDataRefresh);
-      window.removeEventListener('storage', handleStorageChange);
+      supabase.removeChannel(meetingsChannel);
+      supabase.removeChannel(socialPostsChannel);
+      supabase.removeChannel(actionItemsChannel);
     };
   }, []);
 
@@ -119,9 +109,17 @@ const Timeline = () => {
         status: 'completed'
       }));
 
-      // Get social media posts from localStorage
-      const socialPosts = getSocialPosts();
-      const socialPostItems: TimelineItem[] = socialPosts.map(post => ({
+      // Fetch social media posts from Supabase
+      const { data: socialPosts, error: socialError } = await supabase
+        .from('social_posts')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (socialError) {
+        console.error('Error fetching social posts:', socialError);
+      }
+
+      const socialPostItems: TimelineItem[] = (socialPosts || []).map(post => ({
         id: `social-${post.id}`,
         type: 'social_post',
         title: post.content.length > 50 ? post.content.substring(0, 50) + '...' : post.content,
@@ -130,14 +128,22 @@ const Timeline = () => {
         status: post.status
       }));
 
-      // Get action items from localStorage
-      const actionItems = getActionItems();
-      const actionItemItems: TimelineItem[] = actionItems.map(item => ({
+      // Fetch action items from Supabase
+      const { data: actionItems, error: actionError } = await supabase
+        .from('action_items')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (actionError) {
+        console.error('Error fetching action items:', actionError);
+      }
+
+      const actionItemItems: TimelineItem[] = (actionItems || []).map(item => ({
         id: `action-${item.id}`,
         type: 'action_item',
-        title: item.title,
-        date: item.dueDate,
-        details: `Assigned to: ${item.assignee} - ${item.description}`,
+        title: item.task,
+        date: item.due_date || item.created_at,
+        details: `Assigned to: ${item.assignee} - ${item.task}`,
         status: item.status
       }));
 
@@ -184,36 +190,23 @@ const Timeline = () => {
 
         if (error) throw error;
       } else if (item?.type === 'social_post') {
-        // Handle social post deletion from localStorage
-        const socialPosts = getSocialPosts();
         const postId = parseInt(itemToDelete.replace('social-', ''));
-        const updatedPosts = socialPosts.filter(post => post.id !== postId);
-        localStorage.setItem('socialPosts', JSON.stringify(updatedPosts));
-        
-        // Trigger storage event for other tabs
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'socialPosts',
-          newValue: JSON.stringify(updatedPosts),
-          storageArea: localStorage
-        }));
+        const { error } = await supabase
+          .from('social_posts')
+          .delete()
+          .eq('id', postId);
+
+        if (error) throw error;
       } else if (item?.type === 'action_item') {
-        // Handle action item deletion from localStorage
-        const actionItems = getActionItems();
         const actionId = itemToDelete.replace('action-', '');
-        const updatedItems = actionItems.filter(item => item.id !== actionId);
-        localStorage.setItem('actionItems', JSON.stringify(updatedItems));
-        
-        // Trigger storage event for other tabs
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'actionItems',
-          newValue: JSON.stringify(updatedItems),
-          storageArea: localStorage
-        }));
+        const { error } = await supabase
+          .from('action_items')
+          .delete()
+          .eq('id', actionId);
+
+        if (error) throw error;
       }
 
-      // Remove from local state
-      setTimelineItems(prev => prev.filter(item => item.id !== itemToDelete));
-      
       toast({
         title: "Success",
         description: "Item deleted successfully.",

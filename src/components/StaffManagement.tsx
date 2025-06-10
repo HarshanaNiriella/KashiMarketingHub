@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, Users, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useDataSync } from '@/utils/dataSync';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Staff {
   id: string;
@@ -34,61 +35,59 @@ const StaffManagement = () => {
     designation: ''
   });
   const [editPassword, setEditPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-
-  // Use data sync hook
-  const { syncData } = useDataSync();
 
   useEffect(() => {
     loadStaff();
-  }, []);
-
-  // Listen for data refresh events
-  useEffect(() => {
-    const handleDataRefresh = () => {
-      console.log('StaffManagement received data refresh event');
-      loadStaff();
-    };
-
-    window.addEventListener('dataRefresh', handleDataRefresh);
     
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('staff-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'staff'
+        },
+        () => {
+          console.log('Staff data changed, reloading...');
+          loadStaff();
+        }
+      )
+      .subscribe();
+
     return () => {
-      window.removeEventListener('dataRefresh', handleDataRefresh);
+      supabase.removeChannel(channel);
     };
   }, []);
 
-  const loadStaff = () => {
+  const loadStaff = async () => {
     try {
-      const stored = localStorage.getItem('staff');
-      if (stored) {
-        const staffData = JSON.parse(stored);
-        setStaff(staffData);
-        console.log('Loaded staff members:', staffData.length);
-      }
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('staff')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setStaff(data || []);
+      console.log('Loaded staff members:', data?.length || 0);
     } catch (error) {
       console.error('Error loading staff:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load staff members.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const saveStaff = (staffList: Staff[]) => {
-    try {
-      localStorage.setItem('staff', JSON.stringify(staffList));
-      setStaff(staffList);
-      // Trigger data sync after saving
-      syncData();
-      // Trigger storage event for other tabs
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'staff',
-        newValue: JSON.stringify(staffList),
-        storageArea: localStorage
-      }));
-      console.log('Saved staff members:', staffList.length);
-    } catch (error) {
-      console.error('Error saving staff:', error);
-    }
-  };
-
-  const handleAddStaff = () => {
+  const handleAddStaff = async () => {
     if (password !== 'admin') {
       toast({
         title: "Access Denied",
@@ -107,22 +106,29 @@ const StaffManagement = () => {
       return;
     }
 
-    const staffMember: Staff = {
-      id: Date.now().toString(),
-      ...newStaff
-    };
+    try {
+      const { error } = await supabase
+        .from('staff')
+        .insert([newStaff]);
 
-    const updatedStaff = [...staff, staffMember];
-    saveStaff(updatedStaff);
+      if (error) throw error;
 
-    toast({
-      title: "Success",
-      description: "Staff member added successfully.",
-    });
+      toast({
+        title: "Success",
+        description: "Staff member added successfully.",
+      });
 
-    setShowAddDialog(false);
-    setPassword('');
-    setNewStaff({ name: '', department: '', designation: '' });
+      setShowAddDialog(false);
+      setPassword('');
+      setNewStaff({ name: '', department: '', designation: '' });
+    } catch (error) {
+      console.error('Error adding staff:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add staff member.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleEditRequest = (staffMember: Staff) => {
@@ -136,7 +142,7 @@ const StaffManagement = () => {
     setEditPassword('');
   };
 
-  const handleEditStaff = () => {
+  const handleEditStaff = async () => {
     if (editPassword !== 'admin') {
       toast({
         title: "Access Denied",
@@ -157,23 +163,31 @@ const StaffManagement = () => {
 
     if (!staffToEdit) return;
 
-    const updatedStaff = staff.map(s => 
-      s.id === staffToEdit.id 
-        ? { ...s, ...editStaff }
-        : s
-    );
+    try {
+      const { error } = await supabase
+        .from('staff')
+        .update(editStaff)
+        .eq('id', staffToEdit.id);
 
-    saveStaff(updatedStaff);
+      if (error) throw error;
 
-    toast({
-      title: "Success",
-      description: "Staff member updated successfully.",
-    });
+      toast({
+        title: "Success",
+        description: "Staff member updated successfully.",
+      });
 
-    setShowEditDialog(false);
-    setStaffToEdit(null);
-    setEditPassword('');
-    setEditStaff({ name: '', department: '', designation: '' });
+      setShowEditDialog(false);
+      setStaffToEdit(null);
+      setEditPassword('');
+      setEditStaff({ name: '', department: '', designation: '' });
+    } catch (error) {
+      console.error('Error updating staff:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update staff member.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDeleteRequest = (staffId: string) => {
@@ -182,7 +196,7 @@ const StaffManagement = () => {
     setPassword('');
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (password !== 'admin') {
       toast({
         title: "Access Denied",
@@ -193,18 +207,40 @@ const StaffManagement = () => {
     }
 
     if (staffToDelete) {
-      const updatedStaff = staff.filter(s => s.id !== staffToDelete);
-      saveStaff(updatedStaff);
-      toast({
-        title: "Success",
-        description: "Staff member removed successfully.",
-      });
+      try {
+        const { error } = await supabase
+          .from('staff')
+          .delete()
+          .eq('id', staffToDelete);
+
+        if (error) throw error;
+
+        toast({
+          title: "Success",
+          description: "Staff member removed successfully.",
+        });
+      } catch (error) {
+        console.error('Error deleting staff:', error);
+        toast({
+          title: "Error",
+          description: "Failed to remove staff member.",
+          variant: "destructive"
+        });
+      }
     }
 
     setShowDeleteDialog(false);
     setStaffToDelete(null);
     setPassword('');
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-sage-600">Loading staff...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

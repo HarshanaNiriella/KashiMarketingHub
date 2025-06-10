@@ -1,5 +1,6 @@
 
-import { useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface SyncableData {
   actionItems: any[];
@@ -9,192 +10,60 @@ export interface SyncableData {
 }
 
 export const useDataSync = () => {
-  const syncData = useCallback(() => {
+  useEffect(() => {
+    console.log('Data sync initialized with Supabase real-time');
+    
+    // The real-time synchronization is now handled by individual components
+    // This hook is kept for backward compatibility but the heavy lifting
+    // is done by Supabase's real-time subscriptions in each component
+    
+    return () => {
+      console.log('Data sync cleanup');
+    };
+  }, []);
+
+  const syncData = async () => {
     try {
-      // Get all data from localStorage
-      const actionItems = JSON.parse(localStorage.getItem('actionItems') || '[]');
-      const socialPosts = JSON.parse(localStorage.getItem('socialPosts') || '[]');
-      const staff = JSON.parse(localStorage.getItem('staff') || '[]');
-      
-      const syncData: SyncableData = {
-        actionItems,
-        socialPosts,
-        staff,
+      console.log('Manual sync requested - Supabase handles this automatically');
+      return {
+        actionItems: [],
+        socialPosts: [],
+        staff: [],
         lastUpdated: new Date().toISOString()
       };
-
-      // Store in a separate sync key for cross-device comparison
-      localStorage.setItem('syncData', JSON.stringify(syncData));
-      
-      // Also store a timestamp for last sync
-      localStorage.setItem('lastSyncTime', new Date().toISOString());
-      
-      console.log('Data synced at:', new Date().toISOString());
-      
-      return syncData;
     } catch (error) {
-      console.error('Error syncing data:', error);
+      console.error('Error in manual sync:', error);
       return null;
     }
-  }, []);
+  };
 
-  const checkForUpdates = useCallback(() => {
+  const checkForUpdates = () => {
+    // With Supabase real-time, updates are pushed automatically
+    console.log('Supabase real-time handles update checking automatically');
+    return false;
+  };
+
+  const refreshData = () => {
     try {
-      const storedSyncData = localStorage.getItem('syncData');
-      if (!storedSyncData) return false;
-
-      const syncData = JSON.parse(storedSyncData);
-      const currentActionItems = JSON.parse(localStorage.getItem('actionItems') || '[]');
-      const currentSocialPosts = JSON.parse(localStorage.getItem('socialPosts') || '[]');
-      const currentStaff = JSON.parse(localStorage.getItem('staff') || '[]');
-
-      // Check if data has changed
-      const hasChanged = 
-        JSON.stringify(syncData.actionItems) !== JSON.stringify(currentActionItems) ||
-        JSON.stringify(syncData.socialPosts) !== JSON.stringify(currentSocialPosts) ||
-        JSON.stringify(syncData.staff) !== JSON.stringify(currentStaff);
-
-      if (hasChanged) {
-        console.log('Data changes detected, syncing...');
-      }
-
-      return hasChanged;
-    } catch (error) {
-      console.error('Error checking for updates:', error);
-      return false;
-    }
-  }, []);
-
-  const refreshData = useCallback(() => {
-    try {
-      console.log('Refreshing data across all components...');
-      syncData();
+      console.log('Data refresh requested - triggering custom event');
       
-      // Dispatch a custom event that components can listen to
+      // Dispatch a custom event that components can listen to for manual refresh
       window.dispatchEvent(new CustomEvent('dataRefresh', { 
         detail: { timestamp: new Date().toISOString() } 
       }));
-
-      // Also trigger storage events for each key to ensure all components update
-      const actionItems = localStorage.getItem('actionItems');
-      const socialPosts = localStorage.getItem('socialPosts');
-      const staff = localStorage.getItem('staff');
-
-      if (actionItems) {
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'actionItems',
-          newValue: actionItems,
-          storageArea: localStorage
-        }));
-      }
-
-      if (socialPosts) {
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'socialPosts',
-          newValue: socialPosts,
-          storageArea: localStorage
-        }));
-      }
-
-      if (staff) {
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'staff',
-          newValue: staff,
-          storageArea: localStorage
-        }));
-      }
     } catch (error) {
       console.error('Error refreshing data:', error);
     }
-  }, [syncData]);
+  };
 
-  const forceSync = useCallback(() => {
+  const forceSync = () => {
     try {
-      console.log('Force syncing all data...');
-      syncData();
+      console.log('Force sync requested');
       refreshData();
     } catch (error) {
       console.error('Error force syncing:', error);
     }
-  }, [syncData, refreshData]);
-
-  useEffect(() => {
-    // Sync data on component mount
-    syncData();
-
-    // Set up periodic sync every 30 seconds (reduced frequency)
-    const interval = setInterval(() => {
-      if (checkForUpdates()) {
-        syncData();
-      }
-    }, 30000);
-
-    // Listen for storage changes from other tabs/windows
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key && ['actionItems', 'socialPosts', 'staff'].includes(event.key)) {
-        console.log(`Storage change detected for ${event.key}`);
-        
-        // Add a small delay to prevent conflicts
-        setTimeout(() => {
-          syncData();
-          // Trigger a refresh event
-          window.dispatchEvent(new CustomEvent('dataRefresh', { 
-            detail: { key: event.key, timestamp: new Date().toISOString() } 
-          }));
-        }, 100);
-      }
-    };
-
-    // Listen for custom refresh events
-    const handleDataRefresh = (event: CustomEvent) => {
-      console.log('Data refresh event received:', event.detail);
-      // Add a small delay to prevent multiple rapid syncs
-      setTimeout(() => {
-        syncData();
-      }, 50);
-    };
-
-    // Listen for visibility change (when user switches tabs/apps)
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log('Tab became visible, checking for updates...');
-        setTimeout(() => {
-          forceSync();
-        }, 500);
-      }
-    };
-
-    // Listen for focus events (when user comes back to the window)
-    const handleFocus = () => {
-      console.log('Window focused, syncing data...');
-      setTimeout(() => {
-        forceSync();
-      }, 200);
-    };
-
-    // Listen for online/offline events
-    const handleOnline = () => {
-      console.log('Back online, syncing data...');
-      setTimeout(() => {
-        forceSync();
-      }, 1000);
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('dataRefresh', handleDataRefresh as EventListener);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('online', handleOnline);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('dataRefresh', handleDataRefresh as EventListener);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('online', handleOnline);
-    };
-  }, [syncData, checkForUpdates, forceSync]);
+  };
 
   return { syncData, checkForUpdates, refreshData, forceSync };
 };

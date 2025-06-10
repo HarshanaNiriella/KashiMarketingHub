@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# Welcome to Kashi Wellness Retreat's Marketing Hub by Dr.Harshana Niriella
 
 ## Project info
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface TimelineItem {
   id: string;
-  type: 'meeting' | 'social_post';
+  type: 'meeting' | 'social_post' | 'action_item';
   title: string;
   date: string;
   details: string;
@@ -29,6 +30,15 @@ interface SocialPost {
   media: string;
 }
 
+interface ActionItem {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  dueDate: string;
+  assignee: string;
+}
+
 // Get social posts from localStorage
 const getSocialPosts = (): SocialPost[] => {
   try {
@@ -36,6 +46,17 @@ const getSocialPosts = (): SocialPost[] => {
     return stored ? JSON.parse(stored) : [];
   } catch (error) {
     console.error('Error loading social posts:', error);
+    return [];
+  }
+};
+
+// Get action items from localStorage
+const getActionItems = (): ActionItem[] => {
+  try {
+    const stored = localStorage.getItem('actionItems');
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Error loading action items:', error);
     return [];
   }
 };
@@ -52,22 +73,49 @@ const Timeline = () => {
     fetchTimelineData();
   }, []);
 
+  // Listen for data refresh events
+  useEffect(() => {
+    const handleDataRefresh = () => {
+      console.log('Timeline received data refresh event');
+      fetchTimelineData();
+    };
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key && ['socialPosts', 'actionItems'].includes(event.key)) {
+        console.log(`Timeline: Storage change detected for ${event.key}`);
+        fetchTimelineData();
+      }
+    };
+
+    window.addEventListener('dataRefresh', handleDataRefresh);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('dataRefresh', handleDataRefresh);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   const fetchTimelineData = async () => {
     try {
-      // Fetch meeting minutes
+      setIsLoading(true);
+
+      // Fetch meeting minutes from Supabase
       const { data: meetings, error: meetingError } = await supabase
         .from('meeting_minutes')
         .select('*')
         .order('meeting_date', { ascending: false });
 
-      if (meetingError) throw meetingError;
+      if (meetingError) {
+        console.error('Error fetching meetings:', meetingError);
+      }
 
       const meetingItems: TimelineItem[] = (meetings || []).map(meeting => ({
         id: meeting.id,
         type: 'meeting',
         title: `Marketing Meeting`,
         date: meeting.meeting_date,
-        details: `Duration: ${meeting.duration} | Attendees: ${meeting.attendees?.length || 0}`,
+        details: `Duration: ${meeting.duration || 'N/A'} | Attendees: ${meeting.attendees?.length || 0}`,
         status: 'completed'
       }));
 
@@ -82,11 +130,24 @@ const Timeline = () => {
         status: post.status
       }));
 
-      const allItems = [...meetingItems, ...socialPostItems].sort((a, b) => 
+      // Get action items from localStorage
+      const actionItems = getActionItems();
+      const actionItemItems: TimelineItem[] = actionItems.map(item => ({
+        id: `action-${item.id}`,
+        type: 'action_item',
+        title: item.title,
+        date: item.dueDate,
+        details: `Assigned to: ${item.assignee} - ${item.description}`,
+        status: item.status
+      }));
+
+      // Combine and sort all items by date
+      const allItems = [...meetingItems, ...socialPostItems, ...actionItemItems].sort((a, b) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
 
       setTimelineItems(allItems);
+      console.log('Timeline loaded:', allItems.length, 'items');
     } catch (error) {
       console.error('Error fetching timeline data:', error);
     } finally {
@@ -128,6 +189,26 @@ const Timeline = () => {
         const postId = parseInt(itemToDelete.replace('social-', ''));
         const updatedPosts = socialPosts.filter(post => post.id !== postId);
         localStorage.setItem('socialPosts', JSON.stringify(updatedPosts));
+        
+        // Trigger storage event for other tabs
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'socialPosts',
+          newValue: JSON.stringify(updatedPosts),
+          storageArea: localStorage
+        }));
+      } else if (item?.type === 'action_item') {
+        // Handle action item deletion from localStorage
+        const actionItems = getActionItems();
+        const actionId = itemToDelete.replace('action-', '');
+        const updatedItems = actionItems.filter(item => item.id !== actionId);
+        localStorage.setItem('actionItems', JSON.stringify(updatedItems));
+        
+        // Trigger storage event for other tabs
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'actionItems',
+          newValue: JSON.stringify(updatedItems),
+          storageArea: localStorage
+        }));
       }
 
       // Remove from local state
@@ -156,18 +237,43 @@ const Timeline = () => {
       completed: "bg-emerald-100 text-emerald-700",
       scheduled: "bg-blue-100 text-blue-700",
       draft: "bg-purple-100 text-purple-700",
-      planned: "bg-sage-100 text-sage-700"
+      planned: "bg-sage-100 text-sage-700",
+      pending: "bg-orange-100 text-orange-700",
+      under_discussion: "bg-yellow-100 text-yellow-700",
+      delayed: "bg-red-100 text-red-700"
     };
     
     return (
-      <Badge className={variants[status as keyof typeof variants]}>
-        {status}
+      <Badge className={variants[status as keyof typeof variants] || "bg-gray-100 text-gray-700"}>
+        {status.replace('_', ' ')}
       </Badge>
     );
   };
 
   const getTypeIcon = (type: string) => {
-    return type === 'meeting' ? <Users className="h-4 w-4" /> : <Calendar className="h-4 w-4" />;
+    switch (type) {
+      case 'meeting':
+        return <Users className="h-4 w-4" />;
+      case 'social_post':
+        return <Calendar className="h-4 w-4" />;
+      case 'action_item':
+        return <Clock className="h-4 w-4" />;
+      default:
+        return <Calendar className="h-4 w-4" />;
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'meeting':
+        return 'Meeting';
+      case 'social_post':
+        return 'Social Post';
+      case 'action_item':
+        return 'Action Item';
+      default:
+        return 'Item';
+    }
   };
 
   if (isLoading) {
@@ -192,7 +298,12 @@ const Timeline = () => {
                 <div className="flex items-center space-x-3">
                   {getTypeIcon(item.type)}
                   <div>
-                    <p className="font-medium text-sage-800">{item.title}</p>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <p className="font-medium text-sage-800">{item.title}</p>
+                      <span className="text-xs bg-sage-200 text-sage-700 px-2 py-1 rounded">
+                        {getTypeLabel(item.type)}
+                      </span>
+                    </div>
                     <p className="text-sm text-sage-600">{item.details}</p>
                     <div className="flex items-center space-x-2 mt-1">
                       <Clock className="h-3 w-3 text-sage-500" />

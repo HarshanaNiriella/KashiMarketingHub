@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import TeamNotes from '@/components/TeamNotes';
@@ -7,6 +8,10 @@ import ActionItemsSection from '@/components/dashboard/ActionItemsSection';
 import SocialPostsSection from '@/components/dashboard/SocialPostsSection';
 import AdminPasswordDialog from '@/components/dashboard/AdminPasswordDialog';
 import { useDataSync } from '@/utils/dataSync';
+import { supabase } from '@/integrations/supabase/client';
+import { Card } from '@/components/ui/card';
+import { Calendar, Clock, Users } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface DashboardProps {
   onSchedulePost: () => void;
@@ -33,9 +38,20 @@ interface SocialPost {
   time: string;
 }
 
+interface MeetingInfo {
+  lastMeeting: {
+    date: string;
+    attendees: number;
+  } | null;
+  nextMeeting: {
+    date: string;
+  } | null;
+}
+
 const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: DashboardProps) => {
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [upcomingSocialPosts, setUpcomingSocialPosts] = useState<SocialPost[]>([]);
+  const [meetingInfo, setMeetingInfo] = useState<MeetingInfo>({ lastMeeting: null, nextMeeting: null });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
@@ -52,16 +68,14 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   const { syncData, refreshData } = useDataSync();
 
   useEffect(() => {
-    loadActionItems();
-    loadSocialPosts();
+    loadAllData();
   }, []);
 
   // Listen for data refresh events
   useEffect(() => {
     const handleDataRefresh = () => {
       console.log('Dashboard received data refresh event');
-      loadActionItems();
-      loadSocialPosts();
+      loadAllData();
     };
 
     window.addEventListener('dataRefresh', handleDataRefresh);
@@ -71,14 +85,24 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     };
   }, []);
 
-  const loadActionItems = () => {
+  const loadAllData = async () => {
+    await Promise.all([
+      loadActionItems(),
+      loadSocialPosts(),
+      loadMeetingInfo()
+    ]);
+  };
+
+  const loadActionItems = async () => {
     try {
-      const stored = localStorage.getItem('actionItems');
-      if (stored) {
-        const items = JSON.parse(stored);
-        setActionItems(items);
-        console.log('Loaded action items:', items.length);
+      // Load from both localStorage and Supabase
+      const localStored = localStorage.getItem('actionItems');
+      let localItems: ActionItem[] = [];
+      
+      if (localStored) {
+        localItems = JSON.parse(localStored);
       } else {
+        // Default action items if none exist
         const defaultActions: ActionItem[] = [
           {
             id: '1',
@@ -105,8 +129,40 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
             assignee: 'Analytics Team'
           }
         ];
-        setActionItems(defaultActions);
+        localItems = defaultActions;
         localStorage.setItem('actionItems', JSON.stringify(defaultActions));
+      }
+
+      // Also fetch from Supabase action_items table
+      const { data: supabaseItems, error } = await supabase
+        .from('action_items')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && supabaseItems) {
+        // Convert Supabase format to local format
+        const convertedItems: ActionItem[] = supabaseItems.map(item => ({
+          id: item.id,
+          title: item.task,
+          description: item.task,
+          status: item.status,
+          dueDate: item.due_date || new Date().toISOString().split('T')[0],
+          assignee: item.assignee
+        }));
+
+        // Merge with local items (avoiding duplicates)
+        const allItems = [...localItems];
+        convertedItems.forEach(supabaseItem => {
+          if (!allItems.find(localItem => localItem.id === supabaseItem.id)) {
+            allItems.push(supabaseItem);
+          }
+        });
+
+        setActionItems(allItems);
+        console.log('Loaded action items:', allItems.length);
+      } else {
+        setActionItems(localItems);
+        console.log('Loaded local action items:', localItems.length);
       }
     } catch (error) {
       console.error('Error loading action items:', error);
@@ -137,6 +193,44 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
     }
   };
 
+  const loadMeetingInfo = async () => {
+    try {
+      const { data: meetings, error } = await supabase
+        .from('meeting_minutes')
+        .select('*')
+        .order('meeting_date', { ascending: false });
+
+      if (!error && meetings && meetings.length > 0) {
+        // Find last meeting (most recent past or today)
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        
+        const lastMeeting = meetings.find(meeting => 
+          new Date(meeting.meeting_date) <= today
+        );
+
+        // Find next meeting (future)
+        const nextMeeting = meetings.find(meeting => 
+          new Date(meeting.meeting_date) > today
+        );
+
+        setMeetingInfo({
+          lastMeeting: lastMeeting ? {
+            date: lastMeeting.meeting_date,
+            attendees: lastMeeting.attendees?.length || 0
+          } : null,
+          nextMeeting: nextMeeting ? {
+            date: nextMeeting.next_meeting_date || nextMeeting.meeting_date
+          } : null
+        });
+
+        console.log('Loaded meeting info:', { lastMeeting, nextMeeting });
+      }
+    } catch (error) {
+      console.error('Error loading meeting info:', error);
+    }
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -144,9 +238,8 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       refreshData();
       
       // Add a small delay before reloading to ensure sync completes
-      setTimeout(() => {
-        loadActionItems();
-        loadSocialPosts();
+      setTimeout(async () => {
+        await loadAllData();
         setIsRefreshing(false);
         toast({
           title: "Data Refreshed",
@@ -276,6 +369,47 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
   return (
     <div className="space-y-4 sm:space-y-6">
       <DashboardHeader onRefresh={handleRefresh} isRefreshing={isRefreshing} />
+
+      {/* Meeting Info Section */}
+      <Card className="p-4 sm:p-6 border-sage-200">
+        <h3 className="text-lg font-semibold text-sage-800 mb-4">📅 Meeting Overview</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {meetingInfo.lastMeeting && (
+            <div className="flex items-center space-x-3 p-3 bg-emerald-50 rounded-lg">
+              <Calendar className="h-5 w-5 text-emerald-600" />
+              <div>
+                <p className="font-medium text-emerald-800">Last Marketing Meeting</p>
+                <p className="text-sm text-emerald-600">
+                  {format(new Date(meetingInfo.lastMeeting.date), 'MMM d, yyyy')}
+                </p>
+                <p className="text-xs text-emerald-500">
+                  <Users className="h-3 w-3 inline mr-1" />
+                  {meetingInfo.lastMeeting.attendees} attendees
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {meetingInfo.nextMeeting && (
+            <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
+              <Clock className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="font-medium text-blue-800">Next Meeting</p>
+                <p className="text-sm text-blue-600">
+                  {format(new Date(meetingInfo.nextMeeting.date), 'MMM d, yyyy')}
+                </p>
+              </div>
+            </div>
+          )}
+          
+          {!meetingInfo.lastMeeting && !meetingInfo.nextMeeting && (
+            <div className="col-span-full text-center py-4">
+              <p className="text-sage-600">No meeting information available</p>
+              <p className="text-sm text-sage-500">Schedule your first meeting to get started</p>
+            </div>
+          )}
+        </div>
+      </Card>
 
       <QuickActions 
         onSchedulePost={onSchedulePost}

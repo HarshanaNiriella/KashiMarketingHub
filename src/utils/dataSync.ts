@@ -74,6 +74,35 @@ export const useDataSync = () => {
       window.dispatchEvent(new CustomEvent('dataRefresh', { 
         detail: { timestamp: new Date().toISOString() } 
       }));
+
+      // Also trigger storage events for each key to ensure all components update
+      const actionItems = localStorage.getItem('actionItems');
+      const socialPosts = localStorage.getItem('socialPosts');
+      const staff = localStorage.getItem('staff');
+
+      if (actionItems) {
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'actionItems',
+          newValue: actionItems,
+          storageArea: localStorage
+        }));
+      }
+
+      if (socialPosts) {
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'socialPosts',
+          newValue: socialPosts,
+          storageArea: localStorage
+        }));
+      }
+
+      if (staff) {
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'staff',
+          newValue: staff,
+          storageArea: localStorage
+        }));
+      }
     } catch (error) {
       console.error('Error refreshing data:', error);
     }
@@ -112,7 +141,7 @@ export const useDataSync = () => {
           window.dispatchEvent(new CustomEvent('dataRefresh', { 
             detail: { key: event.key, timestamp: new Date().toISOString() } 
           }));
-        }, 500);
+        }, 100);
       }
     };
 
@@ -122,7 +151,7 @@ export const useDataSync = () => {
       // Add a small delay to prevent multiple rapid syncs
       setTimeout(() => {
         syncData();
-      }, 100);
+      }, 50);
     };
 
     // Listen for visibility change (when user switches tabs/apps)
@@ -131,7 +160,7 @@ export const useDataSync = () => {
         console.log('Tab became visible, checking for updates...');
         setTimeout(() => {
           forceSync();
-        }, 1000);
+        }, 500);
       }
     };
 
@@ -140,13 +169,22 @@ export const useDataSync = () => {
       console.log('Window focused, syncing data...');
       setTimeout(() => {
         forceSync();
-      }, 500);
+      }, 200);
+    };
+
+    // Listen for online/offline events
+    const handleOnline = () => {
+      console.log('Back online, syncing data...');
+      setTimeout(() => {
+        forceSync();
+      }, 1000);
     };
 
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('dataRefresh', handleDataRefresh as EventListener);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
 
     return () => {
       clearInterval(interval);
@@ -154,6 +192,7 @@ export const useDataSync = () => {
       window.removeEventListener('dataRefresh', handleDataRefresh as EventListener);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
     };
   }, [syncData, checkForUpdates, forceSync]);
 

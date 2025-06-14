@@ -1,5 +1,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/integrations/supabase/types';
+
+type TableName = keyof Database['public']['Tables'];
 
 interface ExportData {
   staff: any[];
@@ -101,7 +104,7 @@ export const exportAllData = async (format: 'json' | 'csv' = 'json') => {
   }
 };
 
-export const exportTableData = async (tableName: string, format: 'json' | 'csv' = 'json') => {
+export const exportTableData = async (tableName: TableName, format: 'json' | 'csv' = 'json') => {
   try {
     const { data, error } = await supabase
       .from(tableName)

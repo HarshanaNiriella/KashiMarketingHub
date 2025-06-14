@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Users, Shield, UserPlus, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/integrations/supabase/types';
+
+type AppRole = Database['public']['Enums']['app_role'];
 
 interface UserProfile {
   id: string;
@@ -21,7 +24,7 @@ interface UserProfile {
 interface UserRole {
   id: string;
   user_id: string;
-  role: string;
+  role: AppRole;
   assigned_at: string;
   assigned_by: string | null;
 }
@@ -31,7 +34,7 @@ const UserManagement = () => {
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
   const [showAddRoleDialog, setShowAddRoleDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
-  const [newRole, setNewRole] = useState<string>('');
+  const [newRole, setNewRole] = useState<AppRole>('viewer');
   const [adminPassword, setAdminPassword] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -103,7 +106,7 @@ const UserManagement = () => {
     }
   };
 
-  const getUserRole = (userId: string) => {
+  const getUserRole = (userId: string): AppRole => {
     const userRole = userRoles.find(role => role.user_id === userId);
     return userRole?.role || 'viewer';
   };
@@ -137,10 +140,10 @@ const UserManagement = () => {
       // Then assign new role
       const { error } = await supabase
         .from('user_roles')
-        .insert([{
+        .insert({
           user_id: selectedUser.id,
           role: newRole
-        }]);
+        });
 
       if (error) throw error;
 
@@ -151,7 +154,7 @@ const UserManagement = () => {
 
       setShowAddRoleDialog(false);
       setSelectedUser(null);
-      setNewRole('');
+      setNewRole('viewer');
       setAdminPassword('');
     } catch (error) {
       console.error('Error assigning role:', error);
@@ -170,7 +173,7 @@ const UserManagement = () => {
     setAdminPassword('');
   };
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadgeColor = (role: AppRole) => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-700';
       case 'manager': return 'bg-blue-100 text-blue-700';
@@ -251,7 +254,7 @@ const UserManagement = () => {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-sage-700 mb-1">Role</label>
-              <Select value={newRole} onValueChange={setNewRole}>
+              <Select value={newRole} onValueChange={(value: AppRole) => setNewRole(value)}>
                 <SelectTrigger className="border-sage-200">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>

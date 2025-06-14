@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { 
   Home, 
@@ -11,6 +11,7 @@ import {
   Download,
   Settings
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface NavigationProps {
   activeTab: string;
@@ -18,6 +19,57 @@ interface NavigationProps {
 }
 
 const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    checkUserRole();
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (session?.user) {
+          setCurrentUser(session.user);
+          checkUserRole();
+        } else {
+          setCurrentUser(null);
+          setUserRole(null);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const checkUserRole = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setUserRole(null);
+        return;
+      }
+
+      setCurrentUser(user);
+
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (roleError) {
+        console.error('Error checking user role:', roleError);
+        setUserRole(null);
+      } else {
+        setUserRole(roleData?.role || null);
+      }
+    } catch (error) {
+      console.error('Error checking auth:', error);
+      setUserRole(null);
+    }
+  };
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'minutes', label: 'Meeting Minutes', icon: FileText },
@@ -36,6 +88,11 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
+            
+            // Hide admin-only items unless user is admin
+            if (item.adminOnly && userRole !== 'admin') {
+              return null;
+            }
             
             return (
               <button

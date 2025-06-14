@@ -8,20 +8,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Download, FileText, Database, Calendar, Users, MessageSquare, CheckSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { exportAllData, exportTableData } from '@/utils/dataExport';
+import { Database as DatabaseTypes } from '@/integrations/supabase/types';
+
+type TableName = keyof DatabaseTypes['public']['Tables'];
 
 const DataExport = () => {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportType, setExportType] = useState<'all' | 'table'>('all');
-  const [selectedTable, setSelectedTable] = useState<string>('');
+  const [selectedTable, setSelectedTable] = useState<TableName | ''>('');
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
 
   const tableOptions = [
-    { value: 'staff', label: 'Staff Members', icon: Users },
-    { value: 'social_posts', label: 'Social Media Posts', icon: MessageSquare },
-    { value: 'meeting_minutes', label: 'Meeting Minutes', icon: Calendar },
-    { value: 'action_items', label: 'Action Items', icon: CheckSquare }
+    { value: 'staff' as TableName, label: 'Staff Members', icon: Users },
+    { value: 'social_posts' as TableName, label: 'Social Media Posts', icon: MessageSquare },
+    { value: 'meeting_minutes' as TableName, label: 'Meeting Minutes', icon: Calendar },
+    { value: 'action_items' as TableName, label: 'Action Items', icon: CheckSquare }
   ];
 
   const handleExport = async () => {
@@ -34,7 +37,7 @@ const DataExport = () => {
           description: `All data exported as ${exportFormat.toUpperCase()} files.`,
         });
       } else if (selectedTable) {
-        await exportTableData(selectedTable, exportFormat);
+        await exportTableData(selectedTable as TableName, exportFormat);
         const tableName = tableOptions.find(t => t.value === selectedTable)?.label || selectedTable;
         toast({
           title: "Export Successful",
@@ -153,7 +156,7 @@ const DataExport = () => {
             {exportType === 'table' && (
               <div>
                 <label className="block text-sm font-medium text-sage-700 mb-1">Select Table</label>
-                <Select value={selectedTable} onValueChange={setSelectedTable}>
+                <Select value={selectedTable} onValueChange={(value: TableName) => setSelectedTable(value)}>
                   <SelectTrigger className="border-sage-200">
                     <SelectValue placeholder="Choose a table to export" />
                   </SelectTrigger>

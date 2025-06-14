@@ -32,12 +32,17 @@ interface UserRole {
 const UserManagement = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
-  const [showAddRoleDialog, setShowAddRoleDialog] = useState(false);
+  const [showAddUserDialog, setShowAddUserDialog] = useState(false);
+  const [showRoleDialog, setShowRoleDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [newRole, setNewRole] = useState<AppRole>('viewer');
   const [adminPassword, setAdminPassword] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserName, setNewUserName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -68,18 +73,40 @@ const UserManagement = () => {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
+      // First try to load from profiles table
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading users:', error);
-        throw error;
-      }
+      if (profilesError) {
+        console.error('Error loading from profiles table:', profilesError);
+        
+        // If profiles table doesn't exist or is empty, check staff table as fallback
+        const { data: staffData, error: staffError } = await supabase
+          .from('staff')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      setUsers(data || []);
-      console.log('Loaded users from Supabase:', data?.length || 0);
+        if (staffError) {
+          console.error('Error loading from staff table:', staffError);
+          throw staffError;
+        }
+
+        // Convert staff data to user profile format
+        const convertedUsers = staffData?.map(staff => ({
+          id: staff.id,
+          email: `${staff.name.toLowerCase().replace(/\s+/g, '.')}@kashiwellness.com`,
+          full_name: staff.name,
+          created_at: staff.created_at
+        })) || [];
+
+        setUsers(convertedUsers);
+        console.log('Loaded users from staff table:', convertedUsers.length);
+      } else {
+        setUsers(profilesData || []);
+        console.log('Loaded users from profiles table:', profilesData?.length || 0);
+      }
     } catch (error) {
       console.error('Error loading users:', error);
       toast({
@@ -117,13 +144,105 @@ const UserManagement = () => {
     }
   };
 
+  const createUser = async () => {
+    if (adminPassword !== 'Umesha2020#@') {
+      toast({
+        title: "Access Denied",
+        description: "Incorrect admin password.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!newUserEmail || !newUserPassword || !newUserName) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setIsCreatingUser(true);
+
+      // Create user via Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newUserEmail,
+        password: newUserPassword,
+        options: {
+          data: {
+            full_name: newUserName
+          }
+        }
+      });
+
+      if (authError) {
+        console.error('Error creating auth user:', authError);
+        throw authError;
+      }
+
+      if (authData.user) {
+        // Create profile entry
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            email: newUserEmail,
+            full_name: newUserName
+          });
+
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+          // Don't throw here as the user was created successfully
+        }
+
+        // Assign default role
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({
+            user_id: authData.user.id,
+            role: 'viewer'
+          });
+
+        if (roleError) {
+          console.error('Error assigning role:', roleError);
+        }
+
+        toast({
+          title: "Success",
+          description: `User ${newUserName} created successfully.`,
+        });
+
+        setShowAddUserDialog(false);
+        setNewUserEmail('');
+        setNewUserPassword('');
+        setNewUserName('');
+        setAdminPassword('');
+
+        // Refresh data
+        await loadUsers();
+        await loadUserRoles();
+      }
+    } catch (error) {
+      console.error('Error creating user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create user. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
   const getUserRole = (userId: string): AppRole => {
     const userRole = userRoles.find(role => role.user_id === userId);
     return userRole?.role || 'viewer';
   };
 
   const handleAssignRole = async () => {
-    if (adminPassword !== 'admin') {
+    if (adminPassword !== 'Umesha2020#@') {
       toast({
         title: "Access Denied",
         description: "Incorrect admin password.",
@@ -173,7 +292,7 @@ const UserManagement = () => {
         description: `Role ${newRole} assigned to ${selectedUser.email}.`,
       });
 
-      setShowAddRoleDialog(false);
+      setShowRoleDialog(false);
       setSelectedUser(null);
       setNewRole('viewer');
       setAdminPassword('');
@@ -195,7 +314,7 @@ const UserManagement = () => {
   const handleEditRole = (user: UserProfile) => {
     setSelectedUser(user);
     setNewRole(getUserRole(user.id));
-    setShowAddRoleDialog(true);
+    setShowRoleDialog(true);
     setAdminPassword('');
   };
 
@@ -221,10 +340,19 @@ const UserManagement = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold text-sage-800">👥 User Management</h2>
-        <Badge className="bg-emerald-100 text-emerald-700">
-          <Shield className="h-3 w-3 mr-1" />
-          Admin Only
-        </Badge>
+        <div className="flex items-center space-x-2">
+          <Button
+            onClick={() => setShowAddUserDialog(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
+          <Badge className="bg-emerald-100 text-emerald-700">
+            <Shield className="h-3 w-3 mr-1" />
+            Admin Only
+          </Badge>
+        </div>
       </div>
 
       <Card className="p-6 border-sage-200">
@@ -270,8 +398,75 @@ const UserManagement = () => {
         </div>
       </Card>
 
+      {/* Add User Dialog */}
+      <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-1">Full Name</label>
+              <Input
+                placeholder="Enter full name"
+                value={newUserName}
+                onChange={(e) => setNewUserName(e.target.value)}
+                className="border-sage-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-1">Email</label>
+              <Input
+                type="email"
+                placeholder="Enter email address"
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                className="border-sage-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-1">Password</label>
+              <Input
+                type="password"
+                placeholder="Enter password"
+                value={newUserPassword}
+                onChange={(e) => setNewUserPassword(e.target.value)}
+                className="border-sage-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-1">Admin Password</label>
+              <Input
+                type="password"
+                placeholder="Enter admin password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="border-sage-200"
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowAddUserDialog(false)}
+                className="border-sage-200"
+                disabled={isCreatingUser}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={createUser}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={isCreatingUser}
+              >
+                {isCreatingUser ? 'Creating...' : 'Create User'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Role Assignment Dialog */}
-      <Dialog open={showAddRoleDialog} onOpenChange={setShowAddRoleDialog}>
+      <Dialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -306,7 +501,7 @@ const UserManagement = () => {
             <div className="flex justify-end space-x-2">
               <Button
                 variant="outline"
-                onClick={() => setShowAddRoleDialog(false)}
+                onClick={() => setShowRoleDialog(false)}
                 className="border-sage-200"
                 disabled={isUpdatingRole}
               >

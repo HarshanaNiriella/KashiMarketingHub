@@ -8,7 +8,8 @@ import {
   Users, 
   Clock,
   Shield,
-  Download
+  Download,
+  Settings
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -23,6 +24,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
     { id: 'social', label: 'Social Media', icon: MessageSquare },
     { id: 'staff', label: 'Staff Management', icon: Users },
     { id: 'users', label: 'User Management', icon: Shield, adminOnly: true },
+    { id: 'admin-setup', label: 'Admin Setup', icon: Settings, adminOnly: true },
     { id: 'export', label: 'Data Export', icon: Download },
     { id: 'timeline', label: 'Timeline', icon: Clock },
   ];

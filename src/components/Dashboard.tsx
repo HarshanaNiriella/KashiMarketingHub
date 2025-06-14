@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import TeamNotes from '@/components/TeamNotes';
@@ -151,14 +150,12 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
       const { data, error } = await supabase
         .from('social_posts')
         .select('*')
-        .gte('date', new Date().toISOString().split('T')[0])
-        .in('status', ['scheduled', 'planned'])
         .order('date', { ascending: true });
 
       if (error) throw error;
 
       setUpcomingSocialPosts(data || []);
-      console.log('Loaded upcoming social posts:', data?.length || 0);
+      console.log('Loaded all social posts:', data?.length || 0);
     } catch (error) {
       console.error('Error loading social posts:', error);
       setUpcomingSocialPosts([]);
@@ -174,30 +171,64 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
 
       if (!error && meetings && meetings.length > 0) {
         const today = new Date();
-        today.setHours(23, 59, 59, 999);
+        today.setHours(0, 0, 0, 0);
         
-        const lastMeeting = meetings.find(meeting => 
-          new Date(meeting.meeting_date) <= today
-        );
+        // Find the most recent past meeting
+        const lastMeeting = meetings.find(meeting => {
+          const meetingDate = new Date(meeting.meeting_date);
+          meetingDate.setHours(0, 0, 0, 0);
+          return meetingDate <= today;
+        });
 
-        const nextMeeting = meetings.find(meeting => 
-          new Date(meeting.meeting_date) > today
-        );
+        // Find the next future meeting (check both meeting_date and next_meeting_date)
+        let nextMeeting = null;
+        
+        // First check if any meeting has a next_meeting_date in the future
+        for (const meeting of meetings) {
+          if (meeting.next_meeting_date) {
+            const nextMeetingDate = new Date(meeting.next_meeting_date);
+            nextMeetingDate.setHours(0, 0, 0, 0);
+            if (nextMeetingDate > today) {
+              nextMeeting = { date: meeting.next_meeting_date };
+              break;
+            }
+          }
+        }
+        
+        // If no next_meeting_date found, check for future meeting_date entries
+        if (!nextMeeting) {
+          const futureMeeting = meetings.find(meeting => {
+            const meetingDate = new Date(meeting.meeting_date);
+            meetingDate.setHours(0, 0, 0, 0);
+            return meetingDate > today;
+          });
+          
+          if (futureMeeting) {
+            nextMeeting = { date: futureMeeting.meeting_date };
+          }
+        }
 
         setMeetingInfo({
           lastMeeting: lastMeeting ? {
             date: lastMeeting.meeting_date,
             attendees: lastMeeting.attendees?.length || 0
           } : null,
-          nextMeeting: nextMeeting ? {
-            date: nextMeeting.next_meeting_date || nextMeeting.meeting_date
-          } : null
+          nextMeeting
         });
 
-        console.log('Loaded meeting info:', { lastMeeting, nextMeeting });
+        console.log('Loaded meeting info:', { 
+          lastMeeting: lastMeeting ? {
+            date: lastMeeting.meeting_date,
+            attendees: lastMeeting.attendees?.length || 0
+          } : null,
+          nextMeeting 
+        });
+      } else {
+        setMeetingInfo({ lastMeeting: null, nextMeeting: null });
       }
     } catch (error) {
       console.error('Error loading meeting info:', error);
+      setMeetingInfo({ lastMeeting: null, nextMeeting: null });
     }
   };
 
@@ -374,7 +405,7 @@ const Dashboard = ({ onSchedulePost, onViewTimeline, onAddMeetingMinutes }: Dash
             <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
               <Clock className="h-5 w-5 text-blue-600" />
               <div>
-                <p className="font-medium text-blue-800">Next Meeting</p>
+                <p className="font-medium text-blue-800">Next Scheduled Meeting</p>
                 <p className="text-sm text-blue-600">
                   {format(new Date(meetingInfo.nextMeeting.date), 'MMM d, yyyy')}
                 </p>

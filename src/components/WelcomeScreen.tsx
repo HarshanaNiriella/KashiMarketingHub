@@ -102,7 +102,7 @@ const WelcomeScreen = ({ onAuthenticate }: WelcomeScreenProps) => {
           {/* Footer */}
           <div className="mt-8 text-center">
             <p className="text-xs text-sage-500">
-              🌿 Built with mindfulness for internal use only
+              🌿 Built with mindfulness for Kashi Wellness Retreat by Dr.Harshana Niriella
             </p>
           </div>
         </div>

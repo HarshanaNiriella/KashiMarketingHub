@@ -6,6 +6,8 @@ import Dashboard from '@/components/Dashboard';
 import MarketingMinutes from '@/components/MarketingMinutes';
 import SocialMediaPlanner from '@/components/SocialMediaPlanner';
 import StaffManagement from '@/components/StaffManagement';
+import UserManagement from '@/components/UserManagement';
+import DataExport from '@/components/DataExport';
 import Timeline from '@/components/Timeline';
 
 const Index = () => {
@@ -39,6 +41,10 @@ const Index = () => {
         return <SocialMediaPlanner />;
       case 'staff':
         return <StaffManagement />;
+      case 'users':
+        return <UserManagement />;
+      case 'export':
+        return <DataExport />;
       case 'timeline':
         return <Timeline />;
       default:

@@ -1,6 +1,15 @@
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
+import { 
+  Home, 
+  FileText, 
+  MessageSquare, 
+  Users, 
+  Clock,
+  Shield,
+  Download
+} from 'lucide-react';
 
 interface NavigationProps {
   activeTab: string;
@@ -8,38 +17,42 @@ interface NavigationProps {
 }
 
 const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
-  const tabs = [
-    { id: 'dashboard', label: '🏠 Dashboard', badge: null },
-    { id: 'minutes', label: '📝 Meeting Minutes', badge: null },
-    { id: 'social', label: '📱 Social Media', badge: null },
-    { id: 'staff', label: '👥 Staff Management', badge: null },
-    { id: 'timeline', label: '📊 Timeline', badge: null },
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: Home },
+    { id: 'minutes', label: 'Meeting Minutes', icon: FileText },
+    { id: 'social', label: 'Social Media', icon: MessageSquare },
+    { id: 'staff', label: 'Staff Management', icon: Users },
+    { id: 'users', label: 'User Management', icon: Shield, adminOnly: true },
+    { id: 'export', label: 'Data Export', icon: Download },
+    { id: 'timeline', label: 'Timeline', icon: Clock },
   ];
 
   return (
-    <nav className="bg-white border-b border-sage-200 shadow-sm">
+    <nav className="bg-white border-b border-sage-200 sticky top-16 z-40">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="flex space-x-1 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`
-                px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors duration-200 border-b-2 flex items-center gap-2
-                ${activeTab === tab.id
-                  ? 'border-emerald-500 text-emerald-700 bg-emerald-50'
-                  : 'border-transparent text-sage-600 hover:text-sage-800 hover:bg-sage-50'
-                }
-              `}
-            >
-              <span>{tab.label}</span>
-              {tab.badge && (
-                <Badge variant="secondary" className="ml-1 bg-emerald-100 text-emerald-700">
-                  {tab.badge}
-                </Badge>
-              )}
-            </button>
-          ))}
+        <div className="flex space-x-8 overflow-x-auto">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            
+            return (
+              <button
+                key={item.id}
+                onClick={() => onTabChange(item.id)}
+                className={`flex items-center space-x-2 py-4 px-2 border-b-2 transition-colors whitespace-nowrap ${
+                  isActive
+                    ? 'border-emerald-500 text-emerald-600'
+                    : 'border-transparent text-sage-600 hover:text-sage-800 hover:border-sage-300'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="font-medium">{item.label}</span>
+                {item.adminOnly && (
+                  <Badge className="bg-red-100 text-red-700 text-xs">Admin</Badge>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     </nav>

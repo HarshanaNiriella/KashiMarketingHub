@@ -24,6 +24,7 @@ const AuthScreen = ({ onAuthenticate }: AuthScreenProps) => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    console.log('Attempting login for:', email);
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -31,11 +32,34 @@ const AuthScreen = ({ onAuthenticate }: AuthScreenProps) => {
         password,
       });
 
+      console.log('Login response:', { data, error });
+
       if (error) {
+        console.error('Login error details:', error);
+        
+        if (error.message.includes('Email not confirmed')) {
+          toast({
+            title: "Email Not Confirmed",
+            description: "Please check your email and click the confirmation link before signing in.",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (error.message.includes('Invalid login credentials')) {
+          toast({
+            title: "Invalid Credentials",
+            description: "Please check your email and password and try again.",
+            variant: "destructive"
+          });
+          return;
+        }
+        
         throw error;
       }
 
       if (data.user) {
+        console.log('Login successful for user:', data.user.id);
         toast({
           title: "Welcome back!",
           description: "You have successfully logged in.",
@@ -57,8 +81,12 @@ const AuthScreen = ({ onAuthenticate }: AuthScreenProps) => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    console.log('Attempting signup for:', email);
 
     try {
+      const redirectUrl = `${window.location.origin}/`;
+      console.log('Using redirect URL:', redirectUrl);
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -66,23 +94,49 @@ const AuthScreen = ({ onAuthenticate }: AuthScreenProps) => {
           data: {
             full_name: fullName
           },
-          emailRedirectTo: `${window.location.origin}/`
+          emailRedirectTo: redirectUrl
         }
       });
 
+      console.log('Signup response:', { data, error });
+
       if (error) {
+        console.error('Signup error details:', error);
+        
+        if (error.message.includes('already registered')) {
+          toast({
+            title: "Account Already Exists",
+            description: "This email is already registered. Please try logging in instead.",
+            variant: "destructive"
+          });
+          setActiveTab('login');
+          return;
+        }
+        
         throw error;
       }
 
       if (data.user) {
-        toast({
-          title: "Account Created!",
-          description: "Please check your email to verify your account.",
-        });
+        console.log('Signup successful for user:', data.user.id);
         
-        // Switch to login tab
-        setActiveTab('login');
-        setPassword('');
+        // Check if email confirmation is required
+        if (!data.session) {
+          toast({
+            title: "Account Created!",
+            description: "Please check your email to verify your account before signing in.",
+          });
+          
+          // Switch to login tab
+          setActiveTab('login');
+          setPassword('');
+        } else {
+          // If session exists, user is automatically logged in
+          toast({
+            title: "Account Created!",
+            description: "Welcome to Kashi Wellness Retreat!",
+          });
+          onAuthenticate();
+        }
       }
     } catch (error: any) {
       console.error('Signup error:', error);
@@ -206,9 +260,10 @@ const AuthScreen = ({ onAuthenticate }: AuthScreenProps) => {
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Create a password"
+                      placeholder="Create a password (min 6 characters)"
                       className="border-sage-300 focus:border-emerald-500"
                       required
+                      minLength={6}
                       disabled={isLoading}
                     />
                   </div>
@@ -216,7 +271,7 @@ const AuthScreen = ({ onAuthenticate }: AuthScreenProps) => {
                   <Button
                     type="submit"
                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                    disabled={isLoading || !email || !password || !fullName}
+                    disabled={isLoading || !email || !password || !fullName || password.length < 6}
                   >
                     {isLoading ? 'Creating account...' : 'Create Account'}
                   </Button>
@@ -230,6 +285,12 @@ const AuthScreen = ({ onAuthenticate }: AuthScreenProps) => {
             <p className="text-xs text-sage-500">
               🌿 Built with mindfulness for Kashi Wellness Retreat by Dr.Harshana Niriella
             </p>
+            <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+              <strong>Note:</strong> If signup/login isn't working, check your Supabase dashboard:
+              <br />• Set Site URL to your app's URL
+              <br />• Add redirect URLs 
+              <br />• Consider disabling email confirmation for testing
+            </div>
           </div>
         </div>
       </div>

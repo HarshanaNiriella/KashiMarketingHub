@@ -8,28 +8,73 @@ import { useState, useEffect } from "react";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import WelcomeScreen from "./components/WelcomeScreen";
+import AuthScreen from "./components/AuthScreen";
+import { supabase } from "@/integrations/supabase/client";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isWelcomeAuthenticated, setIsWelcomeAuthenticated] = useState(false);
+  const [isSupabaseAuthenticated, setIsSupabaseAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Check if user is already authenticated on app load
   useEffect(() => {
-    const authStatus = localStorage.getItem('kashi-auth');
-    if (authStatus === 'authenticated') {
-      setIsAuthenticated(true);
+    // Check initial session
+    const checkInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsSupabaseAuthenticated(!!session);
+      } catch (error) {
+        console.error('Error checking session:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkInitialSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setIsSupabaseAuthenticated(!!session);
+        setIsLoading(false);
+      }
+    );
+
+    // Check welcome authentication
+    const welcomeAuth = localStorage.getItem('kashi-auth');
+    if (welcomeAuth === 'authenticated') {
+      setIsWelcomeAuthenticated(true);
     }
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const handleAuthenticate = () => {
-    setIsAuthenticated(true);
+  const handleWelcomeAuthenticate = () => {
+    setIsWelcomeAuthenticated(true);
     localStorage.setItem('kashi-auth', 'authenticated');
   };
 
-  // Show welcome screen if not authenticated
-  if (!isAuthenticated) {
-    return <WelcomeScreen onAuthenticate={handleAuthenticate} />;
+  const handleSupabaseAuthenticate = () => {
+    // This will be handled by the auth state change listener
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-sage-50 to-emerald-50 flex items-center justify-center">
+        <div className="text-sage-600">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show welcome screen if not welcomed yet
+  if (!isWelcomeAuthenticated) {
+    return <WelcomeScreen onAuthenticate={handleWelcomeAuthenticate} />;
+  }
+
+  // Show auth screen if not logged into Supabase
+  if (!isSupabaseAuthenticated) {
+    return <AuthScreen onAuthenticate={handleSupabaseAuthenticate} />;
   }
 
   return (

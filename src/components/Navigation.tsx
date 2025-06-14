@@ -21,9 +21,11 @@ interface NavigationProps {
 const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [hasAnyAdmin, setHasAnyAdmin] = useState<boolean>(true);
 
   useEffect(() => {
     checkUserRole();
+    checkIfAnyAdminExists();
     
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -35,11 +37,32 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
           setCurrentUser(null);
           setUserRole(null);
         }
+        checkIfAnyAdminExists();
       }
     );
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const checkIfAnyAdminExists = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('role', 'admin')
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking for admin users:', error);
+        setHasAnyAdmin(true); // Default to true to be safe
+      } else {
+        setHasAnyAdmin(data && data.length > 0);
+      }
+    } catch (error) {
+      console.error('Error checking for admin users:', error);
+      setHasAnyAdmin(true);
+    }
+  };
 
   const checkUserRole = async () => {
     try {
@@ -76,7 +99,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
     { id: 'social', label: 'Social Media', icon: MessageSquare },
     { id: 'staff', label: 'Staff Management', icon: Users },
     { id: 'users', label: 'User Management', icon: Shield, adminOnly: true },
-    { id: 'admin-setup', label: 'Admin Setup', icon: Settings, adminOnly: true },
+    { id: 'admin-setup', label: 'Admin Setup', icon: Settings, adminOnly: true, showWhenNoAdmin: true },
     { id: 'export', label: 'Data Export', icon: Download },
     { id: 'timeline', label: 'Timeline', icon: Clock },
   ];
@@ -89,8 +112,12 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             
-            // Hide admin-only items unless user is admin
-            if (item.adminOnly && userRole !== 'admin') {
+            // Show admin setup if no admin exists OR if user is admin
+            if (item.id === 'admin-setup') {
+              if (hasAnyAdmin && userRole !== 'admin') {
+                return null;
+              }
+            } else if (item.adminOnly && userRole !== 'admin') {
               return null;
             }
             
@@ -107,7 +134,9 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
                 <Icon className="h-4 w-4" />
                 <span className="font-medium">{item.label}</span>
                 {item.adminOnly && (
-                  <Badge className="bg-red-100 text-red-700 text-xs">Admin</Badge>
+                  <Badge className="bg-red-100 text-red-700 text-xs">
+                    {item.id === 'admin-setup' && !hasAnyAdmin ? 'Setup Required' : 'Admin'}
+                  </Badge>
                 )}
               </button>
             );

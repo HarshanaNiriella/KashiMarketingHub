@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Shield, Lock } from 'lucide-react';
+import { Shield, Lock, UserPlus } from 'lucide-react';
 
 const AdminSetup = () => {
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
@@ -13,11 +13,33 @@ const AdminSetup = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasAnyAdmin, setHasAnyAdmin] = useState<boolean>(true);
   const { toast } = useToast();
 
   useEffect(() => {
     checkUserAuth();
+    checkIfAnyAdminExists();
   }, []);
+
+  const checkIfAnyAdminExists = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('role', 'admin')
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking for admin users:', error);
+        setHasAnyAdmin(true);
+      } else {
+        setHasAnyAdmin(data && data.length > 0);
+      }
+    } catch (error) {
+      console.error('Error checking for admin users:', error);
+      setHasAnyAdmin(true);
+    }
+  };
 
   const checkUserAuth = async () => {
     try {
@@ -50,8 +72,8 @@ const AdminSetup = () => {
   };
 
   const createAdminUser = async () => {
-    // First check if current user is admin
-    if (userRole !== 'admin') {
+    // Allow creation if no admin exists OR if current user is admin
+    if (hasAnyAdmin && userRole !== 'admin') {
       toast({
         title: "Access Denied",
         description: "Only existing admin users can create new admin accounts.",
@@ -116,10 +138,12 @@ const AdminSetup = () => {
 
         toast({
           title: "Success",
-          description: "Admin user Dr. Harshana Niriella created successfully!",
+          description: "Admin user Dr. Harshana Niriella created successfully! You can now log in with dr.harshana@kashiwellness.com",
         });
 
         setAdminPassword('');
+        // Refresh admin check
+        await checkIfAnyAdminExists();
       }
     } catch (error) {
       console.error('Error creating admin user:', error);
@@ -141,6 +165,47 @@ const AdminSetup = () => {
     );
   }
 
+  // Show login requirement if no admin exists and no user is logged in
+  if (!hasAnyAdmin && !currentUser) {
+    return (
+      <Card className="p-6 border-sage-200 max-w-md mx-auto">
+        <div className="text-center space-y-4">
+          <UserPlus className="h-12 w-12 text-emerald-600 mx-auto" />
+          <h3 className="text-lg font-semibold text-sage-800">Initial Admin Setup</h3>
+          <p className="text-sm text-sage-600">
+            No admin user exists yet. Create the first admin account to get started.
+          </p>
+          
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-sage-700 mb-1">Admin Password</label>
+              <Input
+                type="password"
+                placeholder="Enter admin password"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="border-sage-200"
+              />
+            </div>
+            
+            <Button
+              onClick={createAdminUser}
+              disabled={isCreatingAdmin || !adminPassword}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {isCreatingAdmin ? 'Creating Admin...' : 'Create Admin User'}
+            </Button>
+          </div>
+          
+          <p className="text-xs text-sage-500">
+            This will create Dr. Harshana Niriella as the super admin
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Show access denied if admin exists but user isn't logged in
   if (!currentUser) {
     return (
       <Card className="p-6 border-sage-200 max-w-md mx-auto">
@@ -150,11 +215,15 @@ const AdminSetup = () => {
           <p className="text-sm text-sage-600">
             You must be logged in to access admin setup.
           </p>
+          <p className="text-xs text-sage-500">
+            Log in with admin credentials to continue.
+          </p>
         </div>
       </Card>
     );
   }
 
+  // Show access denied if user doesn't have admin role
   if (userRole !== 'admin') {
     return (
       <Card className="p-6 border-sage-200 max-w-md mx-auto">
@@ -172,6 +241,7 @@ const AdminSetup = () => {
     );
   }
 
+  // Show admin creation form for existing admins
   return (
     <Card className="p-6 border-sage-200 max-w-md mx-auto">
       <div className="text-center space-y-4">

@@ -1,21 +1,22 @@
+
 import React, { useState } from 'react';
 import Header from '@/components/Header';
 import Navigation from '@/components/Navigation';
 import Dashboard from '@/components/Dashboard';
 import MarketingMinutes from '@/components/MarketingMinutes';
 import SocialMediaPlanner from '@/components/SocialMediaPlanner';
+import StaffManagement from '@/components/StaffManagement';
+import Timeline from '@/components/Timeline';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
 
   const handleSchedulePost = () => {
-    // For now, just log or could redirect to social media planner
     setActiveTab('social');
   };
 
   const handleViewTimeline = () => {
-    // For now, just log or could show a timeline view
-    console.log('View timeline clicked');
+    setActiveTab('timeline');
   };
 
   const handleAddMeetingMinutes = () => {
@@ -36,6 +37,10 @@ const Index = () => {
         return <MarketingMinutes />;
       case 'social':
         return <SocialMediaPlanner />;
+      case 'staff':
+        return <StaffManagement />;
+      case 'timeline':
+        return <Timeline />;
       default:
         return (
           <Dashboard 
@@ -56,7 +61,6 @@ const Index = () => {
         {renderContent()}
       </main>
       
-      {/* Gentle Footer */}
       <footer className="bg-white border-t border-sage-200 mt-16">
         <div className="max-w-7xl mx-auto px-6 py-6 text-center">
           <p className="text-sage-600">

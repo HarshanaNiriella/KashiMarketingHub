@@ -1,17 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Calendar as CalendarIcon, Plus, Image, Video, FileText, Trash2, MessageCircle, Send } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Trash2, Edit } from 'lucide-react';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+import ScheduleSocialPost from './ScheduleSocialPost';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SocialPost {
   id: number;
@@ -25,156 +24,105 @@ interface SocialPost {
 }
 
 const SocialMediaPlanner = () => {
-  const [selectedDate, setSelectedDate] = useState<Date>();
-  const [showNewPostForm, setShowNewPostForm] = useState(false);
-  const [deletePassword, setDeletePassword] = useState('');
+  const [currentView, setCurrentView] = useState<'planner' | 'schedule'>('planner');
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
+  const [filteredPosts, setFilteredPosts] = useState<SocialPost[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterPlatform, setFilterPlatform] = useState<string>('all');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [postToDelete, setPostToDelete] = useState<number | null>(null);
-  const [platform, setPlatform] = useState('');
-  const [postType, setPostType] = useState('');
-  const [content, setContent] = useState('');
-  const [time, setTime] = useState('');
-  const [mediaType, setMediaType] = useState('');
-  const [showNotesDialog, setShowNotesDialog] = useState(false);
-  const [currentPost, setCurrentPost] = useState<SocialPost | null>(null);
-  const [notes, setNotes] = useState<any[]>([]);
-  const [newNote, setNewNote] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-
-  // Load social posts from localStorage
-  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
 
   useEffect(() => {
     loadSocialPosts();
+    
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('social-posts-planner')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'social_posts'
+        },
+        () => {
+          console.log('Social posts changed, reloading...');
+          loadSocialPosts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  const loadSocialPosts = () => {
+  useEffect(() => {
+    filterPosts();
+  }, [socialPosts, filterStatus, filterPlatform]);
+
+  const loadSocialPosts = async () => {
     try {
-      const stored = localStorage.getItem('socialPosts');
-      if (stored) {
-        setSocialPosts(JSON.parse(stored));
-      } else {
-        // Initialize with default posts if none exist
-        const defaultPosts = [
-          {
-            id: 1,
-            content: "Start your morning with gratitude 🙏 What are three things you're grateful for today?",
-            platform: "Instagram",
-            type: "post",
-            status: "scheduled",
-            date: "2024-12-08",
-            time: "07:00",
-            media: "image"
-          },
-          {
-            id: 2,
-            content: "Wellness Wednesday: The power of breathwork in reducing stress and anxiety. Join our evening session!",
-            platform: "Facebook",
-            type: "event",
-            status: "draft",
-            date: "2024-12-10",
-            time: "18:00",
-            media: "video"
-          },
-          {
-            id: 3,
-            content: "New retreat photos from our weekend mindfulness session ✨ #KashiWellness #Mindfulness",
-            platform: "Instagram",
-            type: "carousel",
-            status: "planned",
-            date: "2024-12-12",
-            time: "15:00",
-            media: "image"
-          }
-        ];
-        setSocialPosts(defaultPosts);
-        localStorage.setItem('socialPosts', JSON.stringify(defaultPosts));
-      }
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('social_posts')
+        .select('*')
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+
+      setSocialPosts(data || []);
+      console.log('Loaded social posts:', data?.length || 0);
     } catch (error) {
       console.error('Error loading social posts:', error);
-    }
-  };
-
-  const loadNotes = (postId: number) => {
-    try {
-      const storageKey = `notes_social_post_${postId}`;
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        setNotes(JSON.parse(stored));
-      } else {
-        setNotes([]);
-      }
-    } catch (error) {
-      console.error('Error loading notes:', error);
-      setNotes([]);
-    }
-  };
-
-  const saveNotes = (postId: number, updatedNotes: any[]) => {
-    try {
-      const storageKey = `notes_social_post_${postId}`;
-      localStorage.setItem(storageKey, JSON.stringify(updatedNotes));
-      setNotes(updatedNotes);
-    } catch (error) {
-      console.error('Error saving notes:', error);
-    }
-  };
-
-  const saveSocialPosts = (posts: SocialPost[]) => {
-    try {
-      localStorage.setItem('socialPosts', JSON.stringify(posts));
-      setSocialPosts(posts);
-    } catch (error) {
-      console.error('Error saving social posts:', error);
-    }
-  };
-
-  const resetForm = () => {
-    setPlatform('');
-    setPostType('');
-    setContent('');
-    setTime('');
-    setMediaType('');
-    setSelectedDate(undefined);
-  };
-
-  const validateForm = () => {
-    if (!selectedDate || !platform || !postType || !content || !time) {
       toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
+        title: "Error",
+        description: "Failed to load social posts.",
         variant: "destructive"
       });
-      return false;
+    } finally {
+      setIsLoading(false);
     }
-    return true;
   };
 
-  const createPost = (status: string) => {
-    if (!validateForm()) return;
+  const filterPosts = () => {
+    let filtered = [...socialPosts];
 
-    const newId = socialPosts.length > 0 ? Math.max(...socialPosts.map(p => p.id)) + 1 : 1;
-    const newPost: SocialPost = {
-      id: newId,
-      content,
-      platform,
-      type: postType,
-      status,
-      date: format(selectedDate!, 'yyyy-MM-dd'),
-      time,
-      media: mediaType || 'text'
-    };
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(post => post.status === filterStatus);
+    }
 
-    const updatedPosts = [...socialPosts, newPost];
-    saveSocialPosts(updatedPosts);
+    if (filterPlatform !== 'all') {
+      filtered = filtered.filter(post => post.platform === filterPlatform);
+    }
 
-    toast({
-      title: status === 'draft' ? "Draft Saved! 📝" : "Post Scheduled! 📅",
-      description: `Social media post ${status === 'draft' ? 'saved as draft' : 'scheduled successfully'}.`,
-    });
+    setFilteredPosts(filtered);
+  };
 
-    resetForm();
-    setShowNewPostForm(false);
+  const handleStatusChange = async (postId: number, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('social_posts')
+        .update({ status: newStatus })
+        .eq('id', postId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Status Updated",
+        description: `Post status updated to ${newStatus.replace('_', ' ')}.`,
+      });
+    } catch (error) {
+      console.error('Error updating post status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update post status.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDeleteRequest = (postId: number) => {
@@ -183,7 +131,7 @@ const SocialMediaPlanner = () => {
     setDeletePassword('');
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deletePassword !== 'admin') {
       toast({
         title: "Access Denied",
@@ -193,13 +141,27 @@ const SocialMediaPlanner = () => {
       return;
     }
 
-    if (postToDelete !== null) {
-      const updatedPosts = socialPosts.filter(post => post.id !== postToDelete);
-      saveSocialPosts(updatedPosts);
-      toast({
-        title: "Success",
-        description: "Social media post deleted successfully.",
-      });
+    if (postToDelete) {
+      try {
+        const { error } = await supabase
+          .from('social_posts')
+          .delete()
+          .eq('id', postToDelete);
+
+        if (error) throw error;
+
+        toast({
+          title: "Success",
+          description: "Social media post deleted successfully.",
+        });
+      } catch (error) {
+        console.error('Error deleting post:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete post.",
+          variant: "destructive"
+        });
+      }
     }
 
     setShowDeleteDialog(false);
@@ -207,57 +169,21 @@ const SocialMediaPlanner = () => {
     setDeletePassword('');
   };
 
-  const handleShowNotes = (post: SocialPost) => {
-    setCurrentPost(post);
-    loadNotes(post.id);
-    setShowNotesDialog(true);
-    setNewNote('');
-  };
-
-  const handleAddNote = () => {
-    if (!newNote.trim() || !currentPost) return;
-
-    const note = {
-      id: Date.now().toString(),
-      text: newNote.trim(),
-      timestamp: new Date().toISOString(),
-      author: 'Team Member'
-    };
-
-    const updatedNotes = [...notes, note];
-    saveNotes(currentPost.id, updatedNotes);
-    setNewNote('');
-
-    toast({
-      title: "Note Added",
-      description: "Your note has been added successfully.",
-    });
-  };
-
   const getStatusBadge = (status: string) => {
     const variants = {
-      scheduled: "bg-blue-100 text-blue-700 border-blue-200",
-      draft: "bg-purple-100 text-purple-700 border-purple-200",
-      planned: "bg-sage-100 text-sage-700 border-sage-200",
-      posted: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      delayed: "bg-orange-100 text-orange-700 border-orange-200",
-      still_designing: "bg-pink-100 text-pink-700 border-pink-200"
+      scheduled: "bg-blue-100 text-blue-700",
+      draft: "bg-purple-100 text-purple-700",
+      planned: "bg-sage-100 text-sage-700",
+      posted: "bg-emerald-100 text-emerald-700",
+      delayed: "bg-orange-100 text-orange-700",
+      still_designing: "bg-pink-100 text-pink-700"
     };
     
     return (
-      <Badge className={`${variants[status as keyof typeof variants]} capitalize`}>
+      <Badge className={variants[status as keyof typeof variants] || "bg-gray-100 text-gray-700"}>
         {status.replace('_', ' ')}
       </Badge>
     );
-  };
-
-  const getMediaIcon = (media: string) => {
-    switch (media) {
-      case 'image': return <Image className="h-4 w-4 text-sage-600" />;
-      case 'video': return <Video className="h-4 w-4 text-sage-600" />;
-      case 'text': return <FileText className="h-4 w-4 text-sage-600" />;
-      default: return null;
-    }
   };
 
   const getPlatformEmoji = (platform: string) => {
@@ -270,222 +196,120 @@ const SocialMediaPlanner = () => {
     }
   };
 
+  if (currentView === 'schedule') {
+    return <ScheduleSocialPost onBack={() => setCurrentView('planner')} />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-sage-600">Loading social posts...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold text-sage-800">📱 Social Media Planner</h2>
         <Button 
-          onClick={() => setShowNewPostForm(!showNewPostForm)}
+          onClick={() => setCurrentView('schedule')}
           className="bg-purple-600 hover:bg-purple-700 text-white"
         >
-          <Plus className="h-4 w-4 mr-1" />
-          Schedule New Post
+          📅 Schedule New Post
         </Button>
       </div>
 
-      {/* New Post Form */}
-      {showNewPostForm && (
-        <Card className="p-6 border-purple-200 bg-gradient-to-br from-white to-purple-50">
-          <h3 className="text-lg font-semibold text-sage-800 mb-4">✨ Create New Social Media Post</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <Select value={platform} onValueChange={setPlatform}>
-              <SelectTrigger className="border-sage-200 focus:border-purple-300">
-                <SelectValue placeholder="Select platform *" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Instagram">📸 Instagram</SelectItem>
-                <SelectItem value="Facebook">📘 Facebook</SelectItem>
-                <SelectItem value="Twitter">🐦 Twitter</SelectItem>
-                <SelectItem value="LinkedIn">💼 LinkedIn</SelectItem>
-              </SelectContent>
-            </Select>
+      <div className="flex flex-wrap gap-4 mb-6">
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-48 border-sage-200">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="scheduled">Scheduled</SelectItem>
+            <SelectItem value="draft">Draft</SelectItem>
+            <SelectItem value="planned">Planned</SelectItem>
+            <SelectItem value="posted">Posted</SelectItem>
+            <SelectItem value="delayed">Delayed</SelectItem>
+            <SelectItem value="still_designing">Still Designing</SelectItem>
+          </SelectContent>
+        </Select>
 
-            <Select value={postType} onValueChange={setPostType}>
-              <SelectTrigger className="border-sage-200 focus:border-purple-300">
-                <SelectValue placeholder="Post type *" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="post">📝 Regular Post</SelectItem>
-                <SelectItem value="story">📱 Story</SelectItem>
-                <SelectItem value="reel">🎬 Reel</SelectItem>
-                <SelectItem value="carousel">🎠 Carousel</SelectItem>
-                <SelectItem value="event">📅 Event</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <Select value={filterPlatform} onValueChange={setFilterPlatform}>
+          <SelectTrigger className="w-48 border-sage-200">
+            <SelectValue placeholder="Filter by platform" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Platforms</SelectItem>
+            <SelectItem value="Instagram">📸 Instagram</SelectItem>
+            <SelectItem value="Facebook">📘 Facebook</SelectItem>
+            <SelectItem value="Twitter">🐦 Twitter</SelectItem>
+            <SelectItem value="LinkedIn">💼 LinkedIn</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-sage-700 mb-2">Post Content *</label>
-            <Textarea 
-              placeholder="Write your post content here... Use emojis to make it engaging! ✨"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="min-h-24 border-sage-200 focus:border-purple-300"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-sage-700 mb-2">Schedule Date *</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal border-sage-200",
-                      !selectedDate && "text-sage-500"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-sage-700 mb-2">Time *</label>
-              <Input 
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="border-sage-200 focus:border-purple-300"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-sage-700 mb-2">Media Type</label>
-              <Select value={mediaType} onValueChange={setMediaType}>
-                <SelectTrigger className="border-sage-200 focus:border-purple-300">
-                  <SelectValue placeholder="Media" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="image">🖼️ Image</SelectItem>
-                  <SelectItem value="video">🎥 Video</SelectItem>
-                  <SelectItem value="text">📝 Text Only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-3">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowNewPostForm(false)}
-              className="border-sage-200 text-sage-700"
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => createPost('draft')}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
-            >
-              💾 Save as Draft
-            </Button>
-            <Button 
-              onClick={() => createPost('scheduled')}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              ⏰ Schedule Post
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Posts Timeline */}
       <Card className="p-6 border-sage-200">
-        <h3 className="text-lg font-semibold text-sage-800 mb-4">📅 Upcoming & Recent Posts</h3>
+        <h3 className="text-lg font-semibold text-sage-800 mb-4">📋 All Social Media Posts</h3>
         
         <div className="space-y-4">
-          {socialPosts.map((post) => (
-            <div key={post.id} className="p-4 border border-sage-200 rounded-lg bg-gradient-to-r from-white to-sage-50 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center space-x-3">
-                  <span className="text-lg">{getPlatformEmoji(post.platform)}</span>
-                  <div>
-                    <p className="font-medium text-sage-800">{post.platform}</p>
-                    <p className="text-sm text-sage-600 capitalize">{post.type}</p>
+          {filteredPosts.length > 0 ? (
+            filteredPosts.map((post) => (
+              <div key={post.id} className="p-4 bg-gradient-to-r from-white to-purple-50 rounded-lg border border-purple-200">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{getPlatformEmoji(post.platform)}</span>
+                      <span className="font-medium text-sage-800">{post.platform}</span>
+                      {getStatusBadge(post.status)}
+                      <span className="text-xs bg-sage-200 text-sage-700 px-2 py-1 rounded capitalize">
+                        {post.type}
+                      </span>
+                    </div>
+                    <p className="text-sage-700 mb-2 line-clamp-2">{post.content}</p>
+                    <div className="flex items-center gap-4 text-sm text-sage-500">
+                      <span>📅 {format(new Date(post.date), 'MMM d, yyyy')}</span>
+                      <span>🕒 {post.time}</span>
+                      {post.media && <span>🎬 {post.media}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-4">
+                    <Select onValueChange={(value) => handleStatusChange(post.id, value)}>
+                      <SelectTrigger className="w-32 h-8 text-xs border-sage-200">
+                        <SelectValue placeholder="Update" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="scheduled">Scheduled</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="planned">Planned</SelectItem>
+                        <SelectItem value="posted">Posted</SelectItem>
+                        <SelectItem value="delayed">Delayed</SelectItem>
+                        <SelectItem value="still_designing">Still Designing</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteRequest(post.id)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  {getMediaIcon(post.media)}
-                  {getStatusBadge(post.status)}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleShowNotes(post)}
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteRequest(post.id)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
               </div>
-
-              <p className="text-sage-700 mb-3 leading-relaxed">{post.content}</p>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4 text-sm text-sage-600">
-                  <span>📅 {post.date}</span>
-                  <span>🕒 {post.time}</span>
-                </div>
-                <div className="flex space-x-2">
-                  <Button variant="ghost" size="sm" className="text-purple-600 hover:text-purple-700">
-                    Edit
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700">
-                    Duplicate
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-sage-600 text-center py-8">
+              {socialPosts.length === 0 
+                ? "No social media posts scheduled yet. Click 'Schedule New Post' to get started!" 
+                : "No posts match the current filters."}
+            </p>
+          )}
         </div>
       </Card>
 
-      {/* Analytics Overview */}
-      <Card className="p-6 border-sage-200 bg-gradient-to-br from-white to-emerald-50">
-        <h3 className="text-lg font-semibold text-sage-800 mb-4">📊 This Week's Overview</h3>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <p className="text-2xl font-bold text-emerald-600">{socialPosts.filter(p => p.status === 'scheduled').length}</p>
-            <p className="text-sm text-sage-600">Posts Scheduled</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-purple-600">{socialPosts.filter(p => p.status === 'draft').length}</p>
-            <p className="text-sm text-sage-600">Drafts Pending</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-blue-600">{socialPosts.filter(p => p.status === 'posted').length}</p>
-            <p className="text-sm text-sage-600">Posts Published</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-bold text-amber-600">{socialPosts.filter(p => p.status === 'planned').length}</p>
-            <p className="text-sm text-sage-600">Needs Review</p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
@@ -513,53 +337,6 @@ const SocialMediaPlanner = () => {
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
                 Delete
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Notes Dialog */}
-      <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>💬 Team Notes: {currentPost?.content.substring(0, 50)}...</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {/* Notes List */}
-            <div className="max-h-64 overflow-y-auto space-y-3 p-3 bg-sage-50 rounded-lg">
-              {notes.length > 0 ? (
-                notes.map((note) => (
-                  <div key={note.id} className="bg-white p-3 rounded-lg border border-sage-200">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-medium text-sage-800">{note.author}</span>
-                      <span className="text-xs text-sage-500">
-                        {format(new Date(note.timestamp), 'MMM d, HH:mm')}
-                      </span>
-                    </div>
-                    <p className="text-sage-700">{note.text}</p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sage-600 text-center py-4">No notes yet. Be the first to add one!</p>
-              )}
-            </div>
-
-            {/* Add Note */}
-            <div className="flex space-x-2">
-              <Textarea
-                placeholder="Add a note for the team..."
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                className="flex-1 border-sage-200 focus:border-emerald-300"
-                rows={2}
-              />
-              <Button
-                onClick={handleAddNote}
-                disabled={!newNote.trim()}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>

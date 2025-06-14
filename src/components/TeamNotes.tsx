@@ -7,12 +7,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Send, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Note {
   id: string;
   text: string;
   timestamp: string;
   author: string;
+  item_id: string;
+  item_type: string;
 }
 
 interface Staff {
@@ -35,6 +38,7 @@ const TeamNotes = ({ itemId, itemType, itemTitle, isOpen, onClose }: TeamNotesPr
   const [newNote, setNewNote] = useState('');
   const [selectedStaff, setSelectedStaff] = useState('');
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -44,19 +48,30 @@ const TeamNotes = ({ itemId, itemType, itemTitle, isOpen, onClose }: TeamNotesPr
     }
   }, [isOpen, itemId]);
 
-  const loadStaff = () => {
+  const loadStaff = async () => {
     try {
-      const stored = localStorage.getItem('staff');
-      if (stored) {
-        setStaff(JSON.parse(stored));
-      }
+      const { data, error } = await supabase
+        .from('staff')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setStaff(data || []);
     } catch (error) {
       console.error('Error loading staff:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load staff members.",
+        variant: "destructive"
+      });
     }
   };
 
-  const loadNotes = () => {
+  const loadNotes = async () => {
     try {
+      setIsLoading(true);
+      // For now, we'll store notes in a simple JSON format in localStorage
+      // In a real implementation, you'd want a proper notes table in Supabase
       const storageKey = `notes_${itemType}_${itemId}`;
       const stored = localStorage.getItem(storageKey);
       if (stored) {
@@ -67,6 +82,8 @@ const TeamNotes = ({ itemId, itemType, itemTitle, isOpen, onClose }: TeamNotesPr
     } catch (error) {
       console.error('Error loading notes:', error);
       setNotes([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -80,7 +97,7 @@ const TeamNotes = ({ itemId, itemType, itemTitle, isOpen, onClose }: TeamNotesPr
     }
   };
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (!newNote.trim() || !selectedStaff) {
       toast({
         title: "Missing Information",
@@ -97,7 +114,9 @@ const TeamNotes = ({ itemId, itemType, itemTitle, isOpen, onClose }: TeamNotesPr
       id: Date.now().toString(),
       text: newNote.trim(),
       timestamp: new Date().toISOString(),
-      author: staffMember.name
+      author: staffMember.name,
+      item_id: itemId,
+      item_type: itemType
     };
 
     const updatedNotes = [...notes, note];
@@ -123,7 +142,9 @@ const TeamNotes = ({ itemId, itemType, itemTitle, isOpen, onClose }: TeamNotesPr
         <div className="space-y-4">
           {/* Notes List */}
           <div className="max-h-48 sm:max-h-64 overflow-y-auto space-y-3 p-3 bg-sage-50 rounded-lg">
-            {notes.length > 0 ? (
+            {isLoading ? (
+              <p className="text-sage-600 text-center py-4 text-sm">Loading notes...</p>
+            ) : notes.length > 0 ? (
               notes.map((note) => (
                 <div key={note.id} className="bg-white p-3 rounded-lg border border-sage-200 shadow-sm">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-2">

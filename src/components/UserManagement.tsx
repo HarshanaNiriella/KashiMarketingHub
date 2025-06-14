@@ -37,6 +37,7 @@ const UserManagement = () => {
   const [newRole, setNewRole] = useState<AppRole>('viewer');
   const [adminPassword, setAdminPassword] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,8 +54,8 @@ const UserManagement = () => {
           schema: 'public',
           table: 'user_roles'
         },
-        () => {
-          console.log('User roles changed, reloading...');
+        (payload) => {
+          console.log('User roles changed:', payload);
           loadUserRoles();
         }
       )
@@ -72,13 +73,18 @@ const UserManagement = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading users:', error);
+        throw error;
+      }
+
       setUsers(data || []);
+      console.log('Loaded users from Supabase:', data?.length || 0);
     } catch (error) {
       console.error('Error loading users:', error);
       toast({
         title: "Error",
-        description: "Failed to load users.",
+        description: "Failed to load users from database.",
         variant: "destructive"
       });
     }
@@ -92,13 +98,18 @@ const UserManagement = () => {
         .select('*')
         .order('assigned_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading user roles:', error);
+        throw error;
+      }
+
       setUserRoles(data || []);
+      console.log('Loaded user roles from Supabase:', data?.length || 0);
     } catch (error) {
       console.error('Error loading user roles:', error);
       toast({
         title: "Error",
-        description: "Failed to load user roles.",
+        description: "Failed to load user roles from database.",
         variant: "destructive"
       });
     } finally {
@@ -131,21 +142,31 @@ const UserManagement = () => {
     }
 
     try {
+      setIsUpdatingRole(true);
+
       // First, remove existing role for this user
-      await supabase
+      const { error: deleteError } = await supabase
         .from('user_roles')
         .delete()
         .eq('user_id', selectedUser.id);
 
+      if (deleteError) {
+        console.error('Error removing existing role:', deleteError);
+        throw deleteError;
+      }
+
       // Then assign new role
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('user_roles')
         .insert({
           user_id: selectedUser.id,
           role: newRole
         });
 
-      if (error) throw error;
+      if (insertError) {
+        console.error('Error assigning new role:', insertError);
+        throw insertError;
+      }
 
       toast({
         title: "Success",
@@ -156,13 +177,18 @@ const UserManagement = () => {
       setSelectedUser(null);
       setNewRole('viewer');
       setAdminPassword('');
+
+      // Refresh data to ensure consistency
+      await loadUserRoles();
     } catch (error) {
       console.error('Error assigning role:', error);
       toast({
         title: "Error",
-        description: "Failed to assign role.",
+        description: "Failed to assign role. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setIsUpdatingRole(false);
     }
   };
 
@@ -186,7 +212,7 @@ const UserManagement = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-sage-600">Loading users...</div>
+        <div className="text-sage-600">Loading users from database...</div>
       </div>
     );
   }
@@ -230,6 +256,7 @@ const UserManagement = () => {
                     size="sm"
                     onClick={() => handleEditRole(user)}
                     className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    disabled={isUpdatingRole}
                   >
                     <Edit className="h-4 w-4 mr-1" />
                     Edit Role
@@ -238,7 +265,7 @@ const UserManagement = () => {
               );
             })
           ) : (
-            <p className="text-sage-600 text-center py-8">No users found</p>
+            <p className="text-sage-600 text-center py-8">No users found in database</p>
           )}
         </div>
       </Card>
@@ -281,14 +308,16 @@ const UserManagement = () => {
                 variant="outline"
                 onClick={() => setShowAddRoleDialog(false)}
                 className="border-sage-200"
+                disabled={isUpdatingRole}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleAssignRole}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={isUpdatingRole}
               >
-                Assign Role
+                {isUpdatingRole ? 'Assigning...' : 'Assign Role'}
               </Button>
             </div>
           </div>

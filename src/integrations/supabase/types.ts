@@ -388,6 +388,36 @@ export type Database = {
         }
         Relationships: []
       }
+      team_notes: {
+        Row: {
+          author: string
+          created_at: string
+          id: string
+          item_id: string
+          item_type: string
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          author: string
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type: string
+          text: string
+          updated_at?: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          text?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           assigned_at: string | null

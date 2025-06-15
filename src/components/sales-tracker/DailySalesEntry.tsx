@@ -14,6 +14,8 @@ const DailySalesEntry = () => {
     totalPaymentCollected,
     totalSales,
     todayTotalSalesGenerated,
+    totalDiscounts,
+    netSalesAfterDiscount,
     handleInputChange,
     handleSave
   } = useDailySales();
@@ -40,6 +42,8 @@ const DailySalesEntry = () => {
             totalPaymentCollected={totalPaymentCollected}
             totalSales={totalSales}
             todayTotalSalesGenerated={todayTotalSalesGenerated}
+            totalDiscounts={totalDiscounts}
+            netSalesAfterDiscount={netSalesAfterDiscount}
           />
 
           <Button 

@@ -8,6 +8,7 @@ export const useStaffAttendance = () => {
   const [selectedStaff, setSelectedStaff] = useState('');
   const [attendanceStatus, setAttendanceStatus] = useState('');
   const [dailySales, setDailySales] = useState('');
+  const [totalDiscounts, setTotalDiscounts] = useState('');
   const [isBniDay, setIsBniDay] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -25,13 +26,19 @@ export const useStaffAttendance = () => {
     setIsSubmitting(true);
 
     try {
+      const salesAmount = parseFloat(dailySales) || 0;
+      const discountAmount = parseFloat(totalDiscounts) || 0;
+      const netSales = salesAmount - discountAmount;
+
       const { error } = await supabase
         .from('staff_attendance')
         .insert({
           date: selectedDate,
           staff_name: selectedStaff,
           attendance_status: attendanceStatus,
-          daily_sales: dailySales ? parseFloat(dailySales) : null,
+          daily_sales: salesAmount || null,
+          total_discounts: discountAmount || null,
+          net_sales_after_discount: netSales || null,
           is_bni_day: isBniDay || null
         });
 
@@ -46,6 +53,7 @@ export const useStaffAttendance = () => {
       setSelectedStaff('');
       setAttendanceStatus('');
       setDailySales('');
+      setTotalDiscounts('');
       setIsBniDay(false);
     } catch (error) {
       console.error('Error recording attendance:', error);
@@ -64,12 +72,14 @@ export const useStaffAttendance = () => {
     selectedStaff,
     attendanceStatus,
     dailySales,
+    totalDiscounts,
     isBniDay,
     isSubmitting,
     setSelectedDate,
     setSelectedStaff,
     setAttendanceStatus,
     setDailySales,
+    setTotalDiscounts: setTotalDiscounts,
     setIsBniDay,
     handleSubmit
   };

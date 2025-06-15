@@ -23,12 +23,14 @@ const StaffAttendanceEntry = () => {
     selectedStaff,
     attendanceStatus,
     dailySales,
+    totalDiscounts,
     isBniDay,
     isSubmitting,
     setSelectedDate,
     setSelectedStaff,
     setAttendanceStatus,
     setDailySales,
+    setTotalDiscounts,
     setIsBniDay,
     handleSubmit
   } = useStaffAttendance();
@@ -40,6 +42,7 @@ const StaffAttendanceEntry = () => {
         selectedStaff={selectedStaff}
         attendanceStatus={attendanceStatus}
         dailySales={dailySales}
+        totalDiscounts={totalDiscounts}
         isBniDay={isBniDay}
         staffMembers={STAFF_MEMBERS}
         attendanceStatuses={ATTENDANCE_STATUSES}
@@ -48,6 +51,7 @@ const StaffAttendanceEntry = () => {
         onStaffChange={setSelectedStaff}
         onStatusChange={setAttendanceStatus}
         onSalesChange={setDailySales}
+        onDiscountsChange={setTotalDiscounts}
         onBniChange={setIsBniDay}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}

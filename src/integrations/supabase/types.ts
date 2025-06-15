@@ -71,6 +71,7 @@ export type Database = {
           services: number | null
           thyaga: number | null
           time: string
+          total_discounts: number | null
           unionpay: number | null
           updated_at: string
         }
@@ -91,6 +92,7 @@ export type Database = {
           services?: number | null
           thyaga?: number | null
           time: string
+          total_discounts?: number | null
           unionpay?: number | null
           updated_at?: string
         }
@@ -111,6 +113,7 @@ export type Database = {
           services?: number | null
           thyaga?: number | null
           time?: string
+          total_discounts?: number | null
           unionpay?: number | null
           updated_at?: string
         }
@@ -363,7 +366,9 @@ export type Database = {
           date: string
           id: string
           is_bni_day: boolean | null
+          net_sales_after_discount: number | null
           staff_name: string
+          total_discounts: number | null
           updated_at: string
         }
         Insert: {
@@ -373,7 +378,9 @@ export type Database = {
           date: string
           id?: string
           is_bni_day?: boolean | null
+          net_sales_after_discount?: number | null
           staff_name: string
+          total_discounts?: number | null
           updated_at?: string
         }
         Update: {
@@ -383,7 +390,9 @@ export type Database = {
           date?: string
           id?: string
           is_bni_day?: boolean | null
+          net_sales_after_discount?: number | null
           staff_name?: string
+          total_discounts?: number | null
           updated_at?: string
         }
         Relationships: []

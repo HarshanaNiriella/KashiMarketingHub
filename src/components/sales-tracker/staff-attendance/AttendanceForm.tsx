@@ -1,18 +1,19 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CalendarDays, Users, DollarSign } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar, Users, Save } from 'lucide-react';
 
 interface AttendanceFormProps {
   selectedDate: string;
   selectedStaff: string;
   attendanceStatus: string;
   dailySales: string;
+  totalDiscounts: string;
   isBniDay: boolean;
   staffMembers: string[];
   attendanceStatuses: string[];
@@ -21,7 +22,8 @@ interface AttendanceFormProps {
   onStaffChange: (staff: string) => void;
   onStatusChange: (status: string) => void;
   onSalesChange: (sales: string) => void;
-  onBniChange: (checked: boolean) => void;
+  onDiscountsChange: (discounts: string) => void;
+  onBniChange: (isBni: boolean) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
 }
@@ -31,6 +33,7 @@ const AttendanceForm = ({
   selectedStaff,
   attendanceStatus,
   dailySales,
+  totalDiscounts,
   isBniDay,
   staffMembers,
   attendanceStatuses,
@@ -39,38 +42,40 @@ const AttendanceForm = ({
   onStaffChange,
   onStatusChange,
   onSalesChange,
+  onDiscountsChange,
   onBniChange,
   onSubmit,
   isSubmitting
 }: AttendanceFormProps) => {
-  const showBniOption = bniEligibleStaff.includes(selectedStaff);
+  const netSalesAfterDiscount = (parseFloat(dailySales) || 0) - (parseFloat(totalDiscounts) || 0);
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
+    <Card>
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Users className="h-5 w-5 text-emerald-600" />
-          <span>Staff Attendance Entry</span>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-5 w-5" />
+          Staff Attendance Entry
         </CardTitle>
-        <CardDescription>Record daily attendance and sales for staff members</CardDescription>
+        <CardDescription>
+          Record daily staff attendance and sales performance
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="date" className="flex items-center space-x-2">
-              <CalendarDays className="h-4 w-4" />
-              <span>Date</span>
+          <div>
+            <Label htmlFor="date" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Date
             </Label>
             <Input
               id="date"
               type="date"
               value={selectedDate}
               onChange={(e) => onDateChange(e.target.value)}
-              className="w-full"
             />
           </div>
 
-          <div className="space-y-2">
+          <div>
             <Label htmlFor="staff">Staff Member</Label>
             <Select value={selectedStaff} onValueChange={onStaffChange}>
               <SelectTrigger>
@@ -85,8 +90,10 @@ const AttendanceForm = ({
               </SelectContent>
             </Select>
           </div>
+        </div>
 
-          <div className="space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
             <Label htmlFor="status">Attendance Status</Label>
             <Select value={attendanceStatus} onValueChange={onStatusChange}>
               <SelectTrigger>
@@ -95,47 +102,68 @@ const AttendanceForm = ({
               <SelectContent>
                 {attendanceStatuses.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                    {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="sales" className="flex items-center space-x-2">
-              <DollarSign className="h-4 w-4" />
-              <span>Daily Sales (LKR)</span>
-            </Label>
+          <div>
+            <Label htmlFor="sales">Daily Sales (LKR)</Label>
             <Input
               id="sales"
               type="number"
-              placeholder="0.00"
+              step="0.01"
+              min="0"
               value={dailySales}
               onChange={(e) => onSalesChange(e.target.value)}
-              className="w-full"
+              placeholder="Enter sales amount"
             />
           </div>
         </div>
 
-        {showBniOption && (
-          <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="discounts">Total Discounts Given (LKR)</Label>
+            <Input
+              id="discounts"
+              type="number"
+              step="0.01"
+              min="0"
+              value={totalDiscounts}
+              onChange={(e) => onDiscountsChange(e.target.value)}
+              placeholder="Enter discount amount"
+            />
+          </div>
+
+          <div>
+            <Label>Net Sales After Discount</Label>
+            <div className="p-2 bg-gray-50 rounded border">
+              <span className="font-semibold">LKR {netSalesAfterDiscount.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        {bniEligibleStaff.includes(selectedStaff) && (
+          <div className="flex items-center space-x-2">
             <Checkbox
-              id="bni"
+              id="bni-day"
               checked={isBniDay}
               onCheckedChange={onBniChange}
             />
-            <Label htmlFor="bni" className="text-sm font-medium text-blue-800">
-              This is a BNI meeting day for {selectedStaff}
+            <Label htmlFor="bni-day">
+              BNI Day (Special networking event)
             </Label>
           </div>
         )}
 
         <Button 
           onClick={onSubmit} 
-          className="w-full bg-emerald-600 hover:bg-emerald-700"
-          disabled={isSubmitting || !selectedStaff || !attendanceStatus}
+          disabled={isSubmitting}
+          className="w-full"
         >
+          <Save className="h-4 w-4 mr-2" />
           {isSubmitting ? 'Recording...' : 'Record Attendance'}
         </Button>
       </CardContent>

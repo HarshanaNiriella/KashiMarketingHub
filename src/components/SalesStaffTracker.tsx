@@ -4,12 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, Users, BarChart3, Calendar, Download } from 'lucide-react';
+import { TrendingUp, Users, BarChart3, Calendar, Download, Edit } from 'lucide-react';
 import DailySalesEntry from './sales-tracker/DailySalesEntry';
 import StaffAttendanceEntry from './sales-tracker/StaffAttendanceEntry';
 import SalesAnalytics from './sales-tracker/SalesAnalytics';
 import AttendanceAnalytics from './sales-tracker/AttendanceAnalytics';
 import ReportsExport from './sales-tracker/ReportsExport';
+import SalesEdit from './sales-tracker/SalesEdit';
 
 const SalesStaffTracker = () => {
   const [activeTab, setActiveTab] = useState('daily-entry');
@@ -32,10 +33,14 @@ const SalesStaffTracker = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="daily-entry" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Daily Entry
+          </TabsTrigger>
+          <TabsTrigger value="edit-sales" className="flex items-center gap-2">
+            <Edit className="h-4 w-4" />
+            Edit Sales
           </TabsTrigger>
           <TabsTrigger value="attendance" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -57,6 +62,10 @@ const SalesStaffTracker = () => {
 
         <TabsContent value="daily-entry">
           <DailySalesEntry />
+        </TabsContent>
+
+        <TabsContent value="edit-sales">
+          <SalesEdit />
         </TabsContent>
 
         <TabsContent value="attendance">

@@ -15,7 +15,7 @@ const Header = () => {
           </div>
           <div className="min-w-0">
             <h1 className="text-lg sm:text-2xl font-semibold text-sage-800 truncate">Kashi Wellness Retreat</h1>
-            <p className="text-xs sm:text-sm text-sage-600 hidden sm:block">marketing and Social media planner</p>
+            <p className="text-xs sm:text-sm text-sage-600 hidden sm:block">Total Operations Management System for Kashi</p>
           </div>
         </div>
         <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">

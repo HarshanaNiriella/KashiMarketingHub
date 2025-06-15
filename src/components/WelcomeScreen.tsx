@@ -49,7 +49,7 @@ const WelcomeScreen = ({ onAuthenticate }: WelcomeScreenProps) => {
               Kashi Wellness Retreat
             </h1>
             <p className="text-sage-600 text-sm">
-              Marketing & Social Media Planner
+              Total Operations Management System for Kashi
             </p>
           </div>
 

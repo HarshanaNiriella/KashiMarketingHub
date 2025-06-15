@@ -10,6 +10,7 @@ import UserManagement from '@/components/UserManagement';
 import AdminSetup from '@/components/AdminSetup';
 import DataExport from '@/components/DataExport';
 import Timeline from '@/components/Timeline';
+import SalesStaffTracker from '@/components/SalesStaffTracker';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -42,6 +43,8 @@ const Index = () => {
         return <SocialMediaPlanner />;
       case 'staff':
         return <StaffManagement />;
+      case 'sales-tracker':
+        return <SalesStaffTracker />;
       case 'users':
         return <UserManagement />;
       case 'admin-setup':

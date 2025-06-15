@@ -8,7 +8,8 @@ import {
   Users, 
   Clock,
   Download,
-  Settings
+  Settings,
+  TrendingUp
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -22,6 +23,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
     { id: 'minutes', label: 'Meeting Minutes', icon: FileText },
     { id: 'social', label: 'Social Media', icon: MessageSquare },
     { id: 'staff', label: 'Staff Management', icon: Users },
+    { id: 'sales-tracker', label: 'Sales & Staff Tracker', icon: TrendingUp },
     { id: 'admin-setup', label: 'Admin Setup', icon: Settings },
     { id: 'export', label: 'Data Export', icon: Download },
     { id: 'timeline', label: 'Timeline', icon: Clock },

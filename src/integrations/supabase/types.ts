@@ -53,6 +53,69 @@ export type Database = {
           },
         ]
       }
+      daily_sales_reports: {
+        Row: {
+          card_amex: number | null
+          card_master: number | null
+          card_visa: number | null
+          cash: number | null
+          created_at: string
+          date: string
+          feelo: number | null
+          gift_card_redemptions: number | null
+          gift_cards: number | null
+          id: string
+          mintpay: number | null
+          online_transfer: number | null
+          products: number | null
+          services: number | null
+          thyaga: number | null
+          time: string
+          unionpay: number | null
+          updated_at: string
+        }
+        Insert: {
+          card_amex?: number | null
+          card_master?: number | null
+          card_visa?: number | null
+          cash?: number | null
+          created_at?: string
+          date: string
+          feelo?: number | null
+          gift_card_redemptions?: number | null
+          gift_cards?: number | null
+          id?: string
+          mintpay?: number | null
+          online_transfer?: number | null
+          products?: number | null
+          services?: number | null
+          thyaga?: number | null
+          time: string
+          unionpay?: number | null
+          updated_at?: string
+        }
+        Update: {
+          card_amex?: number | null
+          card_master?: number | null
+          card_visa?: number | null
+          cash?: number | null
+          created_at?: string
+          date?: string
+          feelo?: number | null
+          gift_card_redemptions?: number | null
+          gift_cards?: number | null
+          id?: string
+          mintpay?: number | null
+          online_transfer?: number | null
+          products?: number | null
+          services?: number | null
+          thyaga?: number | null
+          time?: string
+          unionpay?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       job_applications: {
         Row: {
           applicant_id: string | null
@@ -288,6 +351,39 @@ export type Database = {
           designation?: string
           id?: string
           name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staff_attendance: {
+        Row: {
+          attendance_status: string
+          created_at: string
+          daily_sales: number | null
+          date: string
+          id: string
+          is_bni_day: boolean | null
+          staff_name: string
+          updated_at: string
+        }
+        Insert: {
+          attendance_status?: string
+          created_at?: string
+          daily_sales?: number | null
+          date: string
+          id?: string
+          is_bni_day?: boolean | null
+          staff_name: string
+          updated_at?: string
+        }
+        Update: {
+          attendance_status?: string
+          created_at?: string
+          daily_sales?: number | null
+          date?: string
+          id?: string
+          is_bni_day?: boolean | null
+          staff_name?: string
           updated_at?: string
         }
         Relationships: []

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,7 +17,7 @@ interface AttendanceRecord {
 }
 
 const STAFF_MEMBERS = [
-  'Pooja', 'Inoka', 'Kasun', 'Dr.Harshana', 'Putri', 
+  'Pooja', 'Inoka', 'Kasun', 'Dr.Harshana Niriella', 'Putri', 
   'Elisya', 'Udani', 'Yersin', 'Rinoza', 'Jude'
 ];
 
@@ -30,7 +29,7 @@ const ATTENDANCE_OPTIONS = [
   'absent'
 ];
 
-const BNI_ELIGIBLE_STAFF = ['Dr.Harshana', 'Yersin'];
+const BNI_ELIGIBLE_STAFF = ['Dr.Harshana Niriella', 'Yersin'];
 
 const StaffAttendanceEntry = () => {
   const { toast } = useToast();
